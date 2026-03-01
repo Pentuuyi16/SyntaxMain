@@ -52,7 +52,7 @@ SERVERS = [
     {
         "name": "🇱🇻 Латвия — Основной",
         "tag": "latvia",
-        "panel_url": "https://vpn2.syntax-vpn.tech:7080/CEA23FKEvXftAjZk6E0",
+        "panel_url": "https://vpn2.syntax-vpn.tech:7080/CEA23FKEvXftAjZk6E",
         "panel_user": "cxaW4VnoGe",
         "panel_pass": "lPGpavSb3p",
         "inbound_id": 2,
