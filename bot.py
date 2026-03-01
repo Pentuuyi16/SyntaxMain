@@ -15,7 +15,7 @@ from aiogram.types import (
     CallbackQuery,
 )
 from aiogram.enums import ParseMode
-
+from aiogram.client.default import DefaultBotProperties
 from config import (
     TELEGRAM_BOT_TOKEN,
     ADMIN_TELEGRAM_IDS,
@@ -46,7 +46,7 @@ from payments import create_payment as yk_create_payment, check_payment as yk_ch
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-bot = Bot(token=TELEGRAM_BOT_TOKEN, parse_mode=ParseMode.HTML)
+bot = Bot(token=TELEGRAM_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 router = Router()
 
