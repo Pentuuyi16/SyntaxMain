@@ -52,7 +52,7 @@ SERVERS = [
     {
         "name": "🇱🇻 Латвия — Основной",
         "tag": "latvia",
-        "panel_url": "https://vpn2.syntax-vpn.tech:7080",
+        "panel_url": "https://vpn2.syntax-vpn.tech:7080/CEA23FKEvXftAjZk6E0",
         "panel_user": "cxaW4VnoGe",
         "panel_pass": "lPGpavSb3p",
         "inbound_id": 2,
@@ -69,7 +69,7 @@ SERVERS = [
     {
         "name": "🛡 Обход глушилок",
         "tag": "antiblock",
-        "panel_url": "https://vpn1.syntax-vpn.tech:21541",
+        "panel_url": "https://vpn1.syntax-vpn.tech:21541/q8BGciAriapa43kbbB",
         "panel_user": "Vl3T6tg6hm",
         "panel_pass": "RTDaskDU5f",
         "inbound_id": 4,
