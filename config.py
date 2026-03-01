@@ -21,7 +21,7 @@ PLANS = {
     "1month": {
         "name": "1 месяц",
         "duration_days": 30,
-        "price": 150,
+        "price": 1,
         "traffic_gb": 0,  # 0 = безлимит
     },
     "3month": {
