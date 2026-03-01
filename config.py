@@ -64,7 +64,7 @@ SERVERS = [
         "sni": "www.cloudflare.com",
         "fingerprint": "chrome",
         "public_key": "7nrIqM62zxshxr0dlvnT7JoUZrPMzWWH0r0Qs0q-PUI",
-        "short_id": "",
+        "short_id": "3cba52d31b9744c2",
     },
     {
         "name": "🛡 Обход глушилок",
@@ -81,7 +81,7 @@ SERVERS = [
         "sni": "www.cdnv-img.perekrestok.ru",
         "fingerprint": "chrome",
         "public_key": "hsEsCyGBf-VlPx59IahEln0DVud1IpgR2-443nWrSAQ",
-        "short_id": "",
+        "short_id": "c1a80ebffc4f063a",
     },
 ]
 
