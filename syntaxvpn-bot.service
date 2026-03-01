@@ -1,0 +1,14 @@
+[Unit]
+Description=SyntaxVPN Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/syntax-vpn
+ExecStart=/opt/syntax-vpn/venv/bin/python bot.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
