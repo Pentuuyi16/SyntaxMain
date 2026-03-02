@@ -159,7 +159,7 @@ async def yookassa_webhook(request: Request):
     try:
         import httpx
         sub_link = f"https://{DOMAIN}{SUB_PATH}/{user['vpn_uuid']}"
-        happ_link = f"https://happn.network/add?url={sub_link}"
+        happ_link = f"happ://add/{sub_link}"
         text = (
             f"<b>Готово! Оплата подтверждена ✅</b>\n\n"
             f"Спасибо, что выбрали нас — это много значит для нашей команды.\n\n"
