@@ -1,20 +1,25 @@
 """
-Subscription Server — SyntaxVPN
-Отдаёт конфиги всех серверов по одной ссылке:
-https://syntax-vpn.tech/sub/{vpn_uuid}
-
-Клиент (V2RayNG, Hiddify, Streisand) вставляет эту ссылку
-и получает список всех доступных серверов.
+Subscription Server + YooKassa Webhook — SyntaxVPN
 """
 
 import base64
 import urllib.parse
 import logging
-from datetime import datetime
+import json
+from datetime import datetime, timedelta
 
-from fastapi import FastAPI, HTTPException, Response
-from config import SERVERS, SUB_HOST, SUB_PORT, SUB_PATH, DOMAIN
-from database import get_user_by_uuid, get_active_subscription, init_db
+from fastapi import FastAPI, HTTPException, Response, Request
+from config import SERVERS, SUB_HOST, SUB_PORT, SUB_PATH, DOMAIN, PLANS, ADMIN_TELEGRAM_IDS
+from database import (
+    get_user_by_uuid,
+    get_active_subscription,
+    get_or_create_user,
+    create_subscription,
+    get_payment_by_yukassa_id,
+    confirm_payment as db_confirm_payment,
+    init_db,
+)
+from xui_api import add_client_to_all_servers
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -29,10 +34,6 @@ async def startup():
 
 
 def generate_trojan_link(server: dict, password: str) -> str:
-    """
-    Генерирует trojan:// ссылку для одного сервера.
-    Формат: trojan://password@host:port?params#name
-    """
     params = {
         "type": server["network"],
         "security": server["security"],
@@ -44,7 +45,6 @@ def generate_trojan_link(server: dict, password: str) -> str:
     if server.get("short_id"):
         params["sid"] = server["short_id"]
 
-    # Для Reality
     if server["security"] == "reality":
         params["flow"] = "xtls-rprx-vision"
 
@@ -56,16 +56,11 @@ def generate_trojan_link(server: dict, password: str) -> str:
 
 
 def generate_subscription(vpn_uuid: str) -> str:
-    """
-    Генерирует полный subscription-контент (base64)
-    с конфигами всех серверов для данного пользователя.
-    """
     links = []
     for server in SERVERS:
         link = generate_trojan_link(server, vpn_uuid)
         links.append(link)
 
-    # Subscription — это base64-encoded список ссылок через \n
     raw = "\n".join(links)
     encoded = base64.b64encode(raw.encode("utf-8")).decode("utf-8")
     return encoded
@@ -73,38 +68,153 @@ def generate_subscription(vpn_uuid: str) -> str:
 
 @app.get(f"{SUB_PATH}/{{vpn_uuid}}")
 async def subscription_endpoint(vpn_uuid: str):
-    """
-    Главный эндпоинт подписки.
-    Клиент обращается сюда, получает список серверов.
-    """
-    # Проверяем что пользователь существует
     user = get_user_by_uuid(vpn_uuid)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Проверяем активную подписку
     sub = get_active_subscription(user["id"])
     if not sub:
         raise HTTPException(status_code=403, detail="No active subscription")
 
-    # Проверяем срок
     expires = datetime.fromisoformat(sub["expires_at"])
     if expires < datetime.utcnow():
         raise HTTPException(status_code=403, detail="Subscription expired")
 
-    # Генерируем контент подписки
     content = generate_subscription(vpn_uuid)
 
-    # Возвращаем с правильными заголовками
     headers = {
         "Content-Type": "text/plain; charset=utf-8",
         "Content-Disposition": "inline",
         "Profile-Title": base64.b64encode("SyntaxVPN".encode()).decode(),
         "Subscription-Userinfo": f"upload=0; download=0; total=0; expire={int(expires.timestamp())}",
-        "Profile-Update-Interval": "12",  # обновлять каждые 12 часов
+        "Profile-Update-Interval": "12",
     }
 
     return Response(content=content, headers=headers, media_type="text/plain")
+
+
+@app.post("/webhook/yookassa")
+async def yookassa_webhook(request: Request):
+    """
+    Webhook от ЮKassa — автоматическое подтверждение оплаты
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    event_type = body.get("event")
+    if event_type != "payment.succeeded":
+        return {"status": "ignored"}
+
+    payment_obj = body.get("object", {})
+    payment_id = payment_obj.get("id")
+    if not payment_id:
+        return {"status": "no payment id"}
+
+    # Проверяем в нашей БД
+    db_payment = get_payment_by_yukassa_id(payment_id)
+    if not db_payment:
+        logger.warning(f"Webhook: payment {payment_id} not found in DB")
+        return {"status": "not found"}
+
+    if db_payment["status"] == "confirmed":
+        return {"status": "already confirmed"}
+
+    # Получаем данные
+    plan_id = db_payment["plan_id"]
+    if plan_id not in PLANS:
+        logger.error(f"Webhook: unknown plan {plan_id}")
+        return {"status": "unknown plan"}
+
+    plan = PLANS[plan_id]
+    user_id = db_payment["user_id"]
+
+    # Получаем user из БД
+    from database import get_db
+    with get_db() as db:
+        user_row = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    
+    if not user_row:
+        logger.error(f"Webhook: user {user_id} not found")
+        return {"status": "user not found"}
+
+    user = dict(user_row)
+    email = f"tg_{user['telegram_id']}"
+
+    # Время истечения
+    expiry_ms = int(
+        (datetime.utcnow() + timedelta(days=plan["duration_days"])).timestamp() * 1000
+    )
+    traffic_bytes = plan["traffic_gb"] * 1024 * 1024 * 1024 if plan["traffic_gb"] > 0 else 0
+
+    # Добавляем на все серверы
+    ok = await add_client_to_all_servers(
+        vpn_uuid=user["vpn_uuid"],
+        email=email,
+        traffic_limit_bytes=traffic_bytes,
+        expiry_time=expiry_ms,
+    )
+
+    if not ok:
+        logger.error(f"Webhook: failed to add client for user {user['telegram_id']}")
+        # Всё равно подтверждаем платёж и создаём подписку
+        # Админ разберётся
+
+    # Создаём подписку
+    create_subscription(user_id, plan_id, plan["duration_days"], plan["traffic_gb"])
+    db_confirm_payment(payment_id)
+
+    logger.info(f"Webhook: payment {payment_id} confirmed for user {user['telegram_id']}, plan {plan_id}")
+
+    # Отправляем уведомление в Telegram
+    try:
+        import httpx
+        tg_token = None
+        try:
+            from config import TELEGRAM_BOT_TOKEN
+            tg_token = TELEGRAM_BOT_TOKEN
+        except Exception:
+            pass
+
+        if tg_token:
+            sub_link = f"https://{DOMAIN}{SUB_PATH}/{user['vpn_uuid']}"
+            text = (
+                f"🎉 <b>Подписка активирована!</b>\n\n"
+                f"📦 Тариф: {plan['name']}\n"
+                f"📅 Срок: {plan['duration_days']} дн.\n\n"
+                f"🔗 <b>Твоя ссылка подписки:</b>\n"
+                f"<code>{sub_link}</code>\n\n"
+                f"Скопируй и вставь в приложение.\n"
+                f"Все серверы появятся автоматически! 🚀"
+            )
+            async with httpx.AsyncClient() as client:
+                await client.post(
+                    f"https://api.telegram.org/bot{tg_token}/sendMessage",
+                    json={
+                        "chat_id": user["telegram_id"],
+                        "text": text,
+                        "parse_mode": "HTML",
+                    },
+                )
+                # Уведомляем админов
+                for admin_id in ADMIN_TELEGRAM_IDS:
+                    await client.post(
+                        f"https://api.telegram.org/bot{tg_token}/sendMessage",
+                        json={
+                            "chat_id": admin_id,
+                            "text": (
+                                f"💰 Новая оплата!\n"
+                                f"User: {user['telegram_id']}\n"
+                                f"Plan: {plan['name']} — {plan['price']}₽"
+                            ),
+                            "parse_mode": "HTML",
+                        },
+                    )
+    except Exception as e:
+        logger.error(f"Webhook: failed to send TG notification: {e}")
+
+    return {"status": "ok"}
 
 
 @app.get("/health")

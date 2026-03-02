@@ -1,0 +1,231 @@
+from aiogram import Router, F
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+from datetime import datetime, timedelta
+
+from config import PLANS, ADMIN_TELEGRAM_IDS, DOMAIN, SUB_PATH
+from config import TRIAL_ENABLED, TRIAL_DURATION_DAYS, TRIAL_TRAFFIC_GB
+from database import (
+    get_or_create_user,
+    get_active_subscription,
+    create_subscription,
+    create_payment as db_create_payment,
+    confirm_payment as db_confirm_payment,
+    get_payment_by_yukassa_id,
+    has_used_trial,
+    mark_trial_used,
+)
+from xui_api import add_client_to_all_servers
+from payments import create_payment as yk_create_payment, check_payment as yk_check_payment
+
+router = Router()
+
+
+def get_sub_link(vpn_uuid: str) -> str:
+    return f"https://{DOMAIN}{SUB_PATH}/{vpn_uuid}"
+
+
+PLAN_LABELS = {
+    "test": "1₽ - 1 день",
+    "1month": "99₽ - 1 мес",
+    "3month": "289₽ - 3 мес (🔥4%)",
+    "6month": "549₽ - 6 мес (🔥8%)",
+    "12month": "999₽ - 12 мес (🔥16%)",
+}
+
+
+@router.callback_query(F.data == "trial")
+async def trial_handler(callback: CallbackQuery):
+    await callback.answer()
+    user = get_or_create_user(callback.from_user.id, callback.from_user.username)
+
+    if has_used_trial(callback.from_user.id):
+        await callback.message.answer("❌ Ты уже использовал пробный период.")
+        return
+
+    if get_active_subscription(user["id"]):
+        await callback.message.answer("✅ У тебя уже есть активная подписка!")
+        return
+
+    email = f"tg_{callback.from_user.id}"
+    traffic_bytes = TRIAL_TRAFFIC_GB * 1024 * 1024 * 1024
+    expiry_ms = int((datetime.utcnow() + timedelta(days=TRIAL_DURATION_DAYS)).timestamp() * 1000)
+
+    ok = await add_client_to_all_servers(
+        vpn_uuid=user["vpn_uuid"],
+        email=email,
+        traffic_limit_bytes=traffic_bytes,
+        expiry_time=expiry_ms,
+    )
+
+    if not ok:
+        await callback.message.answer("❌ Ошибка при создании ключа. Попробуй позже.")
+        return
+
+    create_subscription(user["id"], "trial", TRIAL_DURATION_DAYS, TRIAL_TRAFFIC_GB)
+    mark_trial_used(callback.from_user.id)
+
+    sub_link = get_sub_link(user["vpn_uuid"])
+    text = (
+        f"🎉 <b>Пробный период активирован!</b>\n\n"
+        f"⏰ Срок: {TRIAL_DURATION_DAYS} дн.\n"
+        f"📦 Трафик: {TRIAL_TRAFFIC_GB} ГБ\n\n"
+        f"🔗 <b>Твоя ссылка подписки:</b>\n"
+        f"<code>{sub_link}</code>\n\n"
+        f"Скопируй и вставь в приложение (V2RayNG, Hiddify, Streisand).\n"
+        f"Все серверы появятся автоматически! 🚀"
+    )
+    await callback.message.answer(text)
+
+
+@router.callback_query(F.data == "buy")
+async def buy_handler(callback: CallbackQuery):
+    await callback.answer()
+
+    text = (
+        "📡 VPN‑ключ предоставляет доступ к стабильным локациям:\n\n"
+        "Преимущества:\n"
+        "- Без ограничений по трафику\n"
+        "- Высокая скорость\n"
+        "- Низкий пинг\n\n"
+        "Идеален для YouTube, стриминга и онлайн-игр — "
+        "всё летает без лагов и подвисаний.\n\n"
+        "Instagram и TikTok открываются мгновенно, "
+        "видео загружаются без ожидания — плавно, быстро и красиво.\n\n"
+        "Стабильное соединение, которое уверенно обходит "
+        "ограничения и глушилки — всегда на связи, без лишних проблем 🚀"
+    )
+
+    buttons = []
+    for plan_id in PLAN_LABELS:
+        buttons.append([InlineKeyboardButton(
+            text=PLAN_LABELS[plan_id],
+            callback_data=f"pay_{plan_id}"
+        )])
+    buttons.append([InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")])
+
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await callback.message.edit_text(text, reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("pay_"))
+async def pay_handler(callback: CallbackQuery):
+    await callback.answer()
+    plan_id = callback.data.replace("pay_", "")
+
+    if plan_id not in PLANS:
+        await callback.message.answer("❌ Тариф не найден.")
+        return
+
+    plan = PLANS[plan_id]
+    user = get_or_create_user(callback.from_user.id, callback.from_user.username)
+
+    payment = yk_create_payment(
+        amount=plan["price"],
+        plan_id=plan_id,
+        telegram_id=callback.from_user.id,
+        description=f"SyntaxVPN — {plan['name']}",
+    )
+
+    if not payment:
+        await callback.message.answer("❌ Ошибка при создании платежа. Попробуй позже.")
+        return
+
+    db_create_payment(user["id"], plan_id, plan["price"], payment["payment_id"])
+
+    buttons = [
+        [InlineKeyboardButton(text=f"Оплатить {plan['price']}₽", url=payment["confirmation_url"])],
+        [InlineKeyboardButton(text="🚪 Назад", callback_data="buy")],
+    ]
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    text = (
+        f"<b>🕊 Свобода всё ближе!</b>\n\n"
+        f"<b>Подтверждение об успешной оплате приходит в течение нескольких секунд</b>"
+    )
+    await callback.message.edit_text(text, reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("check_"))
+async def check_payment_handler(callback: CallbackQuery):
+    from bot import bot
+
+    payment_id = callback.data.replace("check_", "")
+    result = yk_check_payment(payment_id)
+
+    if result["status"] == "succeeded" and result["paid"]:
+        await callback.answer("✅ Оплата подтверждена!")
+
+        db_payment = get_payment_by_yukassa_id(payment_id)
+        if not db_payment:
+            await callback.message.answer("❌ Ошибка: платёж не найден в базе.")
+            return
+
+        if db_payment["status"] == "confirmed":
+            await callback.message.answer("✅ Этот платёж уже обработан!")
+            return
+
+        plan_id = db_payment["plan_id"]
+        plan = PLANS[plan_id]
+        user = get_or_create_user(callback.from_user.id, callback.from_user.username)
+        email = f"tg_{callback.from_user.id}"
+
+        expiry_ms = int(
+            (datetime.utcnow() + timedelta(days=plan["duration_days"])).timestamp() * 1000
+        )
+        traffic_bytes = plan["traffic_gb"] * 1024 * 1024 * 1024 if plan["traffic_gb"] > 0 else 0
+
+        ok = await add_client_to_all_servers(
+            vpn_uuid=user["vpn_uuid"],
+            email=email,
+            traffic_limit_bytes=traffic_bytes,
+            expiry_time=expiry_ms,
+        )
+
+        if not ok:
+            await callback.message.answer(
+                "❌ Ошибка при создании ключа. Обратись к администратору."
+            )
+            for admin_id in ADMIN_TELEGRAM_IDS:
+                try:
+                    await bot.send_message(
+                        admin_id,
+                        f"⚠️ Ошибка создания ключа!\n"
+                        f"User: {callback.from_user.id}\n"
+                        f"Payment: {payment_id}",
+                    )
+                except Exception:
+                    pass
+            return
+
+        create_subscription(user["id"], plan_id, plan["duration_days"], plan["traffic_gb"])
+        db_confirm_payment(payment_id)
+
+        sub_link = get_sub_link(user["vpn_uuid"])
+        text = (
+            f"🎉 <b>Подписка активирована!</b>\n\n"
+            f"📦 Тариф: {plan['name']}\n"
+            f"📅 Срок: {plan['duration_days']} дн.\n\n"
+            f"🔗 <b>Твоя ссылка подписки:</b>\n"
+            f"<code>{sub_link}</code>\n\n"
+            f"Скопируй и вставь в приложение.\n"
+            f"Все серверы появятся автоматически! 🚀"
+        )
+        await callback.message.edit_text(text)
+
+        for admin_id in ADMIN_TELEGRAM_IDS:
+            try:
+                await bot.send_message(
+                    admin_id,
+                    f"💰 Новая оплата!\n"
+                    f"User: @{callback.from_user.username} ({callback.from_user.id})\n"
+                    f"Plan: {plan['name']} — {plan['price']}₽",
+                )
+            except Exception:
+                pass
+
+    elif result["status"] == "pending":
+        await callback.answer("⏳ Оплата ещё не прошла. Подожди немного.", show_alert=True)
+    elif result["status"] == "canceled":
+        await callback.answer("❌ Платёж отменён.", show_alert=True)
+    else:
+        await callback.answer("⏳ Обрабатывается... Попробуй через минуту.", show_alert=True)

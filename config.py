@@ -5,7 +5,7 @@
 # ========================
 # Telegram Bot
 # ========================
-TELEGRAM_BOT_TOKEN = "8599559656:AAGghRx82KG-GiYcXOn7KT1ifXiY8XhzfPw"
+TELEGRAM_BOT_TOKEN = "8040993344:AAHcJZBX35eIe69Hud57GquMQDkRcHD78wc"
 ADMIN_TELEGRAM_IDS = [6397535545]
 
 # ========================
@@ -18,22 +18,34 @@ YUKASSA_SECRET_KEY = "live_vd9yzrsOo56Owbu0fEqKYi-NZtfsVBRlFm3tcNha270"     # З
 # Тарифы (можно менять)
 # ========================
 PLANS = {
+    "test": {
+        "name": "1 день (тест)",
+        "duration_days": 1,
+        "price": 1,
+        "traffic_gb": 0,
+    },
     "1month": {
         "name": "1 месяц",
         "duration_days": 30,
-        "price": 1,
-        "traffic_gb": 0,  # 0 = безлимит
+        "price": 99,
+        "traffic_gb": 0,
     },
     "3month": {
         "name": "3 месяца",
         "duration_days": 90,
-        "price": 400,
+        "price": 289,
         "traffic_gb": 0,
     },
     "6month": {
         "name": "6 месяцев",
         "duration_days": 180,
-        "price": 700,
+        "price": 549,
+        "traffic_gb": 0,
+    },
+    "12month": {
+        "name": "12 месяцев",
+        "duration_days": 365,
+        "price": 999,
         "traffic_gb": 0,
     },
 }
