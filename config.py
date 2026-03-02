@@ -5,7 +5,7 @@
 # ========================
 # Telegram Bot
 # ========================
-TELEGRAM_BOT_TOKEN = "8040993344:AAHcJZBX35eIe69Hud57GquMQDkRcHD78wc"
+TELEGRAM_BOT_TOKEN = "8599559656:AAGghRx82KG-GiYcXOn7KT1ifXiY8XhzfPw"
 ADMIN_TELEGRAM_IDS = [6397535545]
 
 # ========================
