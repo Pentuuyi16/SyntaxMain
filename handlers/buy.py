@@ -206,7 +206,8 @@ async def check_payment_handler(callback: CallbackQuery):
             f"<b>Готово! Оплата подтверждена ✅</b>\n\n"
             f"Спасибо, что выбрали нас — это много значит для нашей команды.\n\n"
             f"<b>С любовью, SyntaxVPN 🤍</b>\n\n"
-            f"<blockquote>{sub_link}</blockquote>"
+            f"<b>Ваш ключ, нажмите чтобы скопировать:</b>\n"
+            f"<code>{sub_link}</code>"
         )
         buttons = [
             [InlineKeyboardButton(text="Добавить VPN в приложение", url=happ_link)],
