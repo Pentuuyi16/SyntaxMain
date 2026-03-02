@@ -9,7 +9,7 @@ import json
 from datetime import datetime, timedelta
 
 from fastapi import FastAPI, HTTPException, Response, Request
-from config import SERVERS, SUB_HOST, SUB_PORT, SUB_PATH, DOMAIN, PLANS, ADMIN_TELEGRAM_IDS
+from config import SERVERS, SUB_HOST, SUB_PORT, SUB_PATH, DOMAIN, PLANS, ADMIN_TELEGRAM_IDS, TELEGRAM_BOT_TOKEN
 from database import (
     get_user_by_uuid,
     get_active_subscription,
@@ -17,6 +17,7 @@ from database import (
     create_subscription,
     get_payment_by_yukassa_id,
     confirm_payment as db_confirm_payment,
+    get_db,
     init_db,
 )
 from xui_api import add_client_to_all_servers
@@ -95,9 +96,6 @@ async def subscription_endpoint(vpn_uuid: str):
 
 @app.post("/webhook/yookassa")
 async def yookassa_webhook(request: Request):
-    """
-    Webhook от ЮKassa — автоматическое подтверждение оплаты
-    """
     try:
         body = await request.json()
     except Exception:
@@ -112,7 +110,6 @@ async def yookassa_webhook(request: Request):
     if not payment_id:
         return {"status": "no payment id"}
 
-    # Проверяем в нашей БД
     db_payment = get_payment_by_yukassa_id(payment_id)
     if not db_payment:
         logger.warning(f"Webhook: payment {payment_id} not found in DB")
@@ -121,7 +118,6 @@ async def yookassa_webhook(request: Request):
     if db_payment["status"] == "confirmed":
         return {"status": "already confirmed"}
 
-    # Получаем данные
     plan_id = db_payment["plan_id"]
     if plan_id not in PLANS:
         logger.error(f"Webhook: unknown plan {plan_id}")
@@ -130,11 +126,9 @@ async def yookassa_webhook(request: Request):
     plan = PLANS[plan_id]
     user_id = db_payment["user_id"]
 
-    # Получаем user из БД
-    from database import get_db
     with get_db() as db:
         user_row = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-    
+
     if not user_row:
         logger.error(f"Webhook: user {user_id} not found")
         return {"status": "user not found"}
@@ -142,13 +136,11 @@ async def yookassa_webhook(request: Request):
     user = dict(user_row)
     email = f"tg_{user['telegram_id']}"
 
-    # Время истечения
     expiry_ms = int(
         (datetime.utcnow() + timedelta(days=plan["duration_days"])).timestamp() * 1000
     )
     traffic_bytes = plan["traffic_gb"] * 1024 * 1024 * 1024 if plan["traffic_gb"] > 0 else 0
 
-    # Добавляем на все серверы
     ok = await add_client_to_all_servers(
         vpn_uuid=user["vpn_uuid"],
         email=email,
@@ -158,59 +150,52 @@ async def yookassa_webhook(request: Request):
 
     if not ok:
         logger.error(f"Webhook: failed to add client for user {user['telegram_id']}")
-        # Всё равно подтверждаем платёж и создаём подписку
-        # Админ разберётся
 
-    # Создаём подписку
     create_subscription(user_id, plan_id, plan["duration_days"], plan["traffic_gb"])
     db_confirm_payment(payment_id)
 
     logger.info(f"Webhook: payment {payment_id} confirmed for user {user['telegram_id']}, plan {plan_id}")
 
-    # Отправляем уведомление в Telegram
     try:
         import httpx
-        tg_token = None
-        try:
-            from config import TELEGRAM_BOT_TOKEN
-            tg_token = TELEGRAM_BOT_TOKEN
-        except Exception:
-            pass
-
-        if tg_token:
-            sub_link = f"https://{DOMAIN}{SUB_PATH}/{user['vpn_uuid']}"
-            text = (
-                f"🎉 <b>Подписка активирована!</b>\n\n"
-                f"📦 Тариф: {plan['name']}\n"
-                f"📅 Срок: {plan['duration_days']} дн.\n\n"
-                f"🔗 <b>Твоя ссылка подписки:</b>\n"
-                f"<code>{sub_link}</code>\n\n"
-                f"Скопируй и вставь в приложение.\n"
-                f"Все серверы появятся автоматически! 🚀"
+        sub_link = f"https://{DOMAIN}{SUB_PATH}/{user['vpn_uuid']}"
+        happ_link = f"https://happn.network/add?url={sub_link}"
+        text = (
+            f"<b>Готово! Оплата подтверждена ✅</b>\n\n"
+            f"Спасибо, что выбрали нас — это много значит для нашей команды.\n\n"
+            f"<b>С любовью, SyntaxVPN 🤍</b>\n\n"
+            f"<blockquote>{sub_link}</blockquote>"
+        )
+        buttons = {
+            "inline_keyboard": [
+                [{"text": "Добавить VPN в приложение", "url": happ_link}],
+                [{"text": "Скачать приложение", "callback_data": "download_app"}],
+                [{"text": "🚪 Главное меню", "callback_data": "back_start"}],
+            ]
+        }
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                json={
+                    "chat_id": user["telegram_id"],
+                    "text": text,
+                    "parse_mode": "HTML",
+                    "reply_markup": buttons,
+                },
             )
-            async with httpx.AsyncClient() as client:
+            for admin_id in ADMIN_TELEGRAM_IDS:
                 await client.post(
-                    f"https://api.telegram.org/bot{tg_token}/sendMessage",
+                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
                     json={
-                        "chat_id": user["telegram_id"],
-                        "text": text,
+                        "chat_id": admin_id,
+                        "text": (
+                            f"💰 Новая оплата!\n"
+                            f"User: {user['telegram_id']}\n"
+                            f"Plan: {plan['name']} — {plan['price']}₽"
+                        ),
                         "parse_mode": "HTML",
                     },
                 )
-                # Уведомляем админов
-                for admin_id in ADMIN_TELEGRAM_IDS:
-                    await client.post(
-                        f"https://api.telegram.org/bot{tg_token}/sendMessage",
-                        json={
-                            "chat_id": admin_id,
-                            "text": (
-                                f"💰 Новая оплата!\n"
-                                f"User: {user['telegram_id']}\n"
-                                f"Plan: {plan['name']} — {plan['price']}₽"
-                            ),
-                            "parse_mode": "HTML",
-                        },
-                    )
     except Exception as e:
         logger.error(f"Webhook: failed to send TG notification: {e}")
 

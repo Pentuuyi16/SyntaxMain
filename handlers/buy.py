@@ -201,16 +201,20 @@ async def check_payment_handler(callback: CallbackQuery):
         db_confirm_payment(payment_id)
 
         sub_link = get_sub_link(user["vpn_uuid"])
+        happ_link = f"https://happn.network/add?url={sub_link}"
         text = (
-            f"🎉 <b>Подписка активирована!</b>\n\n"
-            f"📦 Тариф: {plan['name']}\n"
-            f"📅 Срок: {plan['duration_days']} дн.\n\n"
-            f"🔗 <b>Твоя ссылка подписки:</b>\n"
-            f"<code>{sub_link}</code>\n\n"
-            f"Скопируй и вставь в приложение.\n"
-            f"Все серверы появятся автоматически! 🚀"
+            f"<b>Готово! Оплата подтверждена ✅</b>\n\n"
+            f"Спасибо, что выбрали нас — это много значит для нашей команды.\n\n"
+            f"<b>С любовью, SyntaxVPN 🤍</b>\n\n"
+            f"<blockquote>{sub_link}</blockquote>"
         )
-        await callback.message.edit_text(text)
+        buttons = [
+            [InlineKeyboardButton(text="Добавить VPN в приложение", url=happ_link)],
+            [InlineKeyboardButton(text="Скачать приложение", callback_data="download_app")],
+            [InlineKeyboardButton(text="🚪 Главное меню", callback_data="back_start")],
+        ]
+        kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+        await callback.message.edit_text(text, reply_markup=kb)
 
         for admin_id in ADMIN_TELEGRAM_IDS:
             try:
