@@ -201,7 +201,6 @@ async def check_payment_handler(callback: CallbackQuery):
         db_confirm_payment(payment_id)
 
         sub_link = get_sub_link(user["vpn_uuid"])
-        happ_link = f"happ://add/{sub_link}"
         text = (
             f"<b>Готово! Оплата подтверждена ✅</b>\n\n"
             f"Спасибо, что выбрали нас — это много значит для нашей команды.\n\n"
@@ -210,8 +209,6 @@ async def check_payment_handler(callback: CallbackQuery):
             f"<code>{sub_link}</code>"
         )
         buttons = [
-            [InlineKeyboardButton(text="Добавить VPN в приложение", url=happ_link)],
-            [InlineKeyboardButton(text="Скачать приложение", callback_data="download_app")],
             [InlineKeyboardButton(text="🚪 Главное меню", callback_data="back_start")],
         ]
         kb = InlineKeyboardMarkup(inline_keyboard=buttons)

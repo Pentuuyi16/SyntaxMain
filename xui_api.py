@@ -23,7 +23,6 @@ class XUIClient:
         self.cookie = None
 
     async def login(self) -> bool:
-        """Авторизация в панели, получение cookie"""
         try:
             async with httpx.AsyncClient(verify=False, timeout=15) as client:
                 resp = await client.post(
@@ -46,17 +45,10 @@ class XUIClient:
         traffic_limit_bytes: int = 0,
         expiry_time: int = 0,
     ) -> bool:
-        """
-        Добавляет клиента в inbound.
-        email — уникальное имя клиента (обычно tg_id или uuid)
-        expiry_time — timestamp в миллисекундах (0 = бессрочно)
-        traffic_limit_bytes — лимит трафика в байтах (0 = безлимит)
-        """
         if not self.cookie:
             if not await self.login():
                 return False
 
-        # Для Trojan протокола пароль = vpn_uuid
         client_data = {
             "id": self.inbound_id,
             "settings": json.dumps({
@@ -86,6 +78,10 @@ class XUIClient:
                     logger.info(f"Client {email} added to {self.server['name']}")
                     return True
                 else:
+                    msg = result.get("msg", "")
+                    if "Duplicate" in msg:
+                        logger.info(f"Client {email} already exists on {self.server['name']}")
+                        return True
                     logger.error(f"Add client failed on {self.server['name']}: {result}")
                     return False
         except Exception as e:
@@ -93,14 +89,12 @@ class XUIClient:
             return False
 
     async def remove_client(self, email: str) -> bool:
-        """Удаляет клиента из inbound по email"""
         if not self.cookie:
             if not await self.login():
                 return False
 
         try:
             async with httpx.AsyncClient(verify=False, timeout=15, cookies=self.cookie) as client:
-                # Сначала получим UUID клиента
                 resp = await client.get(
                     f"{self.base_url}/panel/api/inbounds/get/{self.inbound_id}",
                 )
@@ -116,9 +110,8 @@ class XUIClient:
 
                 if not target:
                     logger.warning(f"Client {email} not found on {self.server['name']}")
-                    return True  # Уже удалён
+                    return True
 
-                # Удаляем по password (для trojan)
                 resp = await client.post(
                     f"{self.base_url}/panel/api/inbounds/{self.inbound_id}/delClient/{target['password']}",
                 )
@@ -134,7 +127,6 @@ class XUIClient:
             return False
 
     async def get_client_traffic(self, email: str) -> dict | None:
-        """Получает статистику трафика клиента"""
         if not self.cookie:
             if not await self.login():
                 return None
@@ -158,17 +150,12 @@ class XUIClient:
             return None
 
 
-# ==================
-# Функции для работы со всеми серверами
-# ==================
-
 async def add_client_to_all_servers(
     vpn_uuid: str,
     email: str,
     traffic_limit_bytes: int = 0,
     expiry_time: int = 0,
 ) -> bool:
-    """Добавляет клиента на ВСЕ серверы. Возвращает True если хотя бы один успешен."""
     results = []
     for server_config in SERVERS:
         xui = XUIClient(server_config)
@@ -178,7 +165,6 @@ async def add_client_to_all_servers(
 
 
 async def remove_client_from_all_servers(email: str) -> bool:
-    """Удаляет клиента со ВСЕХ серверов"""
     results = []
     for server_config in SERVERS:
         xui = XUIClient(server_config)
@@ -188,7 +174,6 @@ async def remove_client_from_all_servers(email: str) -> bool:
 
 
 async def get_total_traffic(email: str) -> dict:
-    """Суммарный трафик по всем серверам"""
     total_up = 0
     total_down = 0
     for server_config in SERVERS:

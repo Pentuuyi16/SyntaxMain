@@ -159,17 +159,15 @@ async def yookassa_webhook(request: Request):
     try:
         import httpx
         sub_link = f"https://{DOMAIN}{SUB_PATH}/{user['vpn_uuid']}"
-        happ_link = f"happ://add/{sub_link}"
         text = (
             f"<b>Готово! Оплата подтверждена ✅</b>\n\n"
             f"Спасибо, что выбрали нас — это много значит для нашей команды.\n\n"
+            f"<b>С любовью, SyntaxVPN 🤍</b>\n\n"
             f"<b>Ваш ключ, нажмите чтобы скопировать:</b>\n"
             f"<code>{sub_link}</code>"
         )
         buttons = {
             "inline_keyboard": [
-                [{"text": "Добавить VPN в приложение", "url": happ_link}],
-                [{"text": "Скачать приложение", "callback_data": "download_app"}],
                 [{"text": "🚪 Главное меню", "callback_data": "back_start"}],
             ]
         }
