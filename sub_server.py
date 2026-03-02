@@ -94,6 +94,25 @@ async def subscription_endpoint(vpn_uuid: str):
     return Response(content=content, headers=headers, media_type="text/plain")
 
 
+@app.get("/r")
+async def redirect_to_happ(url: str):
+    """Редирект-страница для открытия Happ"""
+    happ_url = f"happ://add/{url}"
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="0;url={happ_url}">
+<title>SyntaxVPN</title>
+</head>
+<body>
+<p>Открываю приложение...</p>
+<script>window.location.href="{happ_url}";</script>
+</body>
+</html>"""
+    return Response(content=html, media_type="text/html")
+
+
 @app.post("/webhook/yookassa")
 async def yookassa_webhook(request: Request):
     try:
@@ -159,6 +178,7 @@ async def yookassa_webhook(request: Request):
     try:
         import httpx
         sub_link = f"https://{DOMAIN}{SUB_PATH}/{user['vpn_uuid']}"
+        happ_redirect = f"https://{DOMAIN}/r?url={sub_link}"
         text = (
             f"<b>Готово! Оплата подтверждена ✅</b>\n\n"
             f"Спасибо, что выбрали нас — это много значит для нашей команды.\n\n"
@@ -168,6 +188,8 @@ async def yookassa_webhook(request: Request):
         )
         buttons = {
             "inline_keyboard": [
+                [{"text": "Добавить VPN в приложение", "url": happ_redirect}],
+                [{"text": "Скачать приложение", "callback_data": "download_app"}],
                 [{"text": "🚪 Главное меню", "callback_data": "back_start"}],
             ]
         }
