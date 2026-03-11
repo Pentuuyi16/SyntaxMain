@@ -7,7 +7,7 @@ from database import get_or_create_user, get_active_subscription
 
 router = Router()
 
-WELCOME_PHOTO = "AgACAgIAAxkBAAOzabB-82YQ4nLfLDvh4yDJHLlvh20AAg8UaxtaVohJPKOiJa0997wBAAMCAAN5AAM6BA"
+WELCOME_VIDEO = "BAACAgIAAxkBAAPTabG1FttZVJgs48wZqknWfFKmf70AAjyfAAJaVpBJzPjJ_XuBX6o6BA"
 
 
 def get_main_menu(user_id: int) -> InlineKeyboardMarkup:
@@ -43,7 +43,7 @@ async def cmd_start(message: types.Message):
     first_name = message.from_user.first_name or "друг"
     text = get_welcome_text(first_name)
     kb = get_main_menu(message.from_user.id)
-    await message.answer_photo(photo=WELCOME_PHOTO, caption=text, reply_markup=kb)
+    await message.answer_video(video=WELCOME_VIDEO, caption=text, reply_markup=kb)
 
 
 @router.callback_query(F.data == "back_start")
@@ -53,8 +53,8 @@ async def back_start_handler(callback: CallbackQuery):
     text = get_welcome_text(first_name)
     kb = get_main_menu(callback.from_user.id)
 
-    if callback.message.photo:
+    if callback.message.video:
         await callback.message.edit_caption(caption=text, reply_markup=kb)
     else:
         await callback.message.delete()
-        await callback.message.answer_photo(photo=WELCOME_PHOTO, caption=text, reply_markup=kb)
+        await callback.message.answer_video(video=WELCOME_VIDEO, caption=text, reply_markup=kb)
