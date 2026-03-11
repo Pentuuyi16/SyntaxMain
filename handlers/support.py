@@ -3,7 +3,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQu
 
 router = Router()
 
-SUPPORT_VIDEO = "BAACAgIAAxkBAAPZabG4yylI3rRCyqhgjFvBwna15b0AAm6fAAJaVpBJYtuAysu0vkg6BA"
+SUPPORT_VIDEO = "BAACAgIAAxkBAAPkabG6bCrHTuYunAN6oifN10gFV80AAoufAAJaVpBJ5f8STYZBFXQ6BA"
 
 
 def has_media(message) -> bool:

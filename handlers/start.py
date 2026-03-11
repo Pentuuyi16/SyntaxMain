@@ -1,6 +1,6 @@
 from aiogram import Router, types, F
 from aiogram.filters import CommandStart
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, InputMediaPhoto
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 
 from config import ADMIN_TELEGRAM_IDS
 from database import get_or_create_user, get_active_subscription
@@ -53,8 +53,8 @@ async def back_start_handler(callback: CallbackQuery):
     text = get_welcome_text(first_name)
     kb = get_main_menu(callback.from_user.id)
 
-    if callback.message.video:
-        await callback.message.edit_caption(caption=text, reply_markup=kb)
-    else:
+    try:
         await callback.message.delete()
-        await callback.message.answer_video(video=WELCOME_VIDEO, caption=text, reply_markup=kb)
+    except Exception:
+        pass
+    await callback.message.answer_video(video=WELCOME_VIDEO, caption=text, reply_markup=kb)
