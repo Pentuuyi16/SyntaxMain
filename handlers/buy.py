@@ -33,6 +33,10 @@ PLAN_LABELS = {
 }
 
 
+def has_media(message) -> bool:
+    return bool(message.photo or message.video or message.animation)
+
+
 @router.callback_query(F.data == "trial")
 async def trial_handler(callback: CallbackQuery):
     await callback.answer()
@@ -100,7 +104,7 @@ async def buy_handler(callback: CallbackQuery):
     buttons.append([InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")])
 
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-    if callback.message.photo:
+    if has_media(callback.message):
         await callback.message.delete()
         await callback.message.answer(text, reply_markup=kb)
     else:
@@ -142,7 +146,7 @@ async def pay_handler(callback: CallbackQuery):
         f"<b>🕊 Свобода всё ближе!</b>\n\n"
         f"<b>Подтверждение об успешной оплате приходит в течение нескольких секунд</b>"
     )
-    if callback.message.photo:
+    if has_media(callback.message):
         await callback.message.delete()
         await callback.message.answer(text, reply_markup=kb)
     else:
@@ -216,7 +220,7 @@ async def check_payment_handler(callback: CallbackQuery):
             [InlineKeyboardButton(text="🚪 Главное меню", callback_data="back_start")],
         ]
         kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-        if callback.message.photo:
+        if has_media(callback.message):
             await callback.message.delete()
             await callback.message.answer(text, reply_markup=kb)
         else:

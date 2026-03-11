@@ -7,6 +7,10 @@ from database import get_all_users_count, get_active_subs_count
 router = Router()
 
 
+def has_media(message) -> bool:
+    return bool(message.photo or message.video or message.animation)
+
+
 @router.callback_query(F.data == "admin")
 async def admin_handler(callback: CallbackQuery):
     if callback.from_user.id not in ADMIN_TELEGRAM_IDS:
@@ -25,7 +29,11 @@ async def admin_handler(callback: CallbackQuery):
 
     buttons = [
         [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_start")],
+        [InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")],
     ]
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-    await callback.message.edit_text(text, reply_markup=kb)
+    if has_media(callback.message):
+        await callback.message.delete()
+        await callback.message.answer(text, reply_markup=kb)
+    else:
+        await callback.message.edit_text(text, reply_markup=kb)

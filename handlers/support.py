@@ -3,6 +3,12 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQu
 
 router = Router()
 
+SUPPORT_VIDEO = "BAACAgIAAxkBAAPZabG4yylI3rRCyqhgjFvBwna15b0AAm6fAAJaVpBJYtuAysu0vkg6BA"
+
+
+def has_media(message) -> bool:
+    return bool(message.photo or message.video or message.animation)
+
 
 @router.callback_query(F.data == "support")
 async def support_handler(callback: CallbackQuery):
@@ -17,7 +23,16 @@ async def support_handler(callback: CallbackQuery):
         [InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")],
     ]
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-    await callback.message.edit_text(text, reply_markup=kb)
+
+    if has_media(callback.message):
+        await callback.message.delete()
+    else:
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+
+    await callback.message.answer_video(video=SUPPORT_VIDEO, caption=text, reply_markup=kb)
 
 
 @router.callback_query(F.data == "faq")
@@ -41,7 +56,11 @@ async def faq_handler(callback: CallbackQuery):
 
     buttons = [[InlineKeyboardButton(text="🚪 Назад", callback_data="support")]]
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-    await callback.message.edit_text(text, reply_markup=kb)
+    if has_media(callback.message):
+        await callback.message.delete()
+        await callback.message.answer(text, reply_markup=kb)
+    else:
+        await callback.message.edit_text(text, reply_markup=kb)
 
 
 @router.callback_query(F.data == "how_to_connect")
@@ -52,7 +71,11 @@ async def how_to_connect_handler(callback: CallbackQuery):
 
     buttons = [[InlineKeyboardButton(text="🚪 Назад", callback_data="support")]]
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-    await callback.message.edit_text(text, reply_markup=kb)
+    if has_media(callback.message):
+        await callback.message.delete()
+        await callback.message.answer(text, reply_markup=kb)
+    else:
+        await callback.message.edit_text(text, reply_markup=kb)
 
 
 @router.callback_query(F.data == "chat_support")
@@ -63,4 +86,8 @@ async def chat_support_handler(callback: CallbackQuery):
 
     buttons = [[InlineKeyboardButton(text="🚪 Назад", callback_data="support")]]
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-    await callback.message.edit_text(text, reply_markup=kb)
+    if has_media(callback.message):
+        await callback.message.delete()
+        await callback.message.answer(text, reply_markup=kb)
+    else:
+        await callback.message.edit_text(text, reply_markup=kb)

@@ -4,6 +4,10 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQu
 router = Router()
 
 
+def has_media(message) -> bool:
+    return bool(message.photo or message.video or message.animation)
+
+
 @router.callback_query(F.data == "referral")
 async def referral_handler(callback: CallbackQuery):
     await callback.answer()
@@ -15,6 +19,10 @@ async def referral_handler(callback: CallbackQuery):
         "получать бонусы к подписке!"
     )
 
-    buttons = [[InlineKeyboardButton(text="⬅️ Назад", callback_data="back_start")]]
+    buttons = [[InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")]]
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-    await callback.message.edit_text(text, reply_markup=kb)
+    if has_media(callback.message):
+        await callback.message.delete()
+        await callback.message.answer(text, reply_markup=kb)
+    else:
+        await callback.message.edit_text(text, reply_markup=kb)

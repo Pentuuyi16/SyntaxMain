@@ -17,6 +17,10 @@ def get_sub_link(vpn_uuid: str) -> str:
     return f"https://{DOMAIN}{SUB_PATH}/{vpn_uuid}"
 
 
+def has_media(message) -> bool:
+    return bool(message.photo or message.video or message.animation)
+
+
 @router.callback_query(F.data == "mykey")
 async def mykey_handler(callback: CallbackQuery):
     await callback.answer()
@@ -24,15 +28,17 @@ async def mykey_handler(callback: CallbackQuery):
     sub = get_active_subscription(user["id"])
 
     if not sub:
+        text = "❌ У тебя нет активной подписки.\nКупи подписку чтобы получить ключ!"
         buttons = [
             [InlineKeyboardButton(text="🤍 Купить подписку", callback_data="buy")],
             [InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")],
         ]
         kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-        await callback.message.edit_text(
-            "❌ У тебя нет активной подписки.\nКупи подписку чтобы получить ключ!",
-            reply_markup=kb,
-        )
+        if has_media(callback.message):
+            await callback.message.delete()
+            await callback.message.answer(text, reply_markup=kb)
+        else:
+            await callback.message.edit_text(text, reply_markup=kb)
         return
 
     email = f"tg_{callback.from_user.id}"
@@ -57,4 +63,8 @@ async def mykey_handler(callback: CallbackQuery):
         [InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")],
     ]
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-    await callback.message.edit_text(text, reply_markup=kb)
+    if has_media(callback.message):
+        await callback.message.delete()
+        await callback.message.answer(text, reply_markup=kb)
+    else:
+        await callback.message.edit_text(text, reply_markup=kb)
