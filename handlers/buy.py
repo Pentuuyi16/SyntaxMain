@@ -100,7 +100,11 @@ async def buy_handler(callback: CallbackQuery):
     buttons.append([InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")])
 
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-    await callback.message.edit_text(text, reply_markup=kb)
+    if callback.message.photo:
+        await callback.message.delete()
+        await callback.message.answer(text, reply_markup=kb)
+    else:
+        await callback.message.edit_text(text, reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith("pay_"))
@@ -138,7 +142,11 @@ async def pay_handler(callback: CallbackQuery):
         f"<b>🕊 Свобода всё ближе!</b>\n\n"
         f"<b>Подтверждение об успешной оплате приходит в течение нескольких секунд</b>"
     )
-    await callback.message.edit_text(text, reply_markup=kb)
+    if callback.message.photo:
+        await callback.message.delete()
+        await callback.message.answer(text, reply_markup=kb)
+    else:
+        await callback.message.edit_text(text, reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith("check_"))
@@ -208,7 +216,11 @@ async def check_payment_handler(callback: CallbackQuery):
             [InlineKeyboardButton(text="🚪 Главное меню", callback_data="back_start")],
         ]
         kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-        await callback.message.edit_text(text, reply_markup=kb)
+        if callback.message.photo:
+            await callback.message.delete()
+            await callback.message.answer(text, reply_markup=kb)
+        else:
+            await callback.message.edit_text(text, reply_markup=kb)
 
         for admin_id in ADMIN_TELEGRAM_IDS:
             try:
