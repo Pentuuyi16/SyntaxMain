@@ -102,7 +102,7 @@ SERVERS = [
         "panel_user": "Vl3T6tg6hm",
         "panel_pass": "RTDaskDU5f",
         "inbound_id": 3,
-        "server_ip": "212.233.89.94",
+        "server_ip": "vpn1.syntax-vpn.tech",
         "server_port": 4443,
         "protocol": "trojan",
         "network": "xhttp",
