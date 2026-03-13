@@ -45,11 +45,14 @@ async def mykey_handler(callback: CallbackQuery):
     traffic = await get_total_traffic(email)
     used_gb = format_gb(traffic["total"])
     sub_link = get_sub_link(user["vpn_uuid"])
+    expires = datetime.fromisoformat(sub["expires_at"])
+    days_left = (expires - datetime.utcnow()).days
 
     text = (
         f"👁‍🗨 Лимит трафика: ♾️Безлимит\n"
         f"🌐 В этом месяце: {used_gb}гб\n"
         f"📱 Лимит устройств: 3шт\n"
+        f"⏳ Осталось {days_left} дней\n"
         f"🕯 ID: {callback.from_user.id}\n\n"
         f"🗝 Ключ:\n"
         f"<code>{sub_link}</code>\n\n"
