@@ -51,6 +51,7 @@ def generate_trojan_link(server: dict, password: str) -> str:
 
     if server["network"] == "xhttp":
         params["path"] = server.get("path", "/")
+        params["host"] = ""
         params["mode"] = "auto"
 
     if server.get("spx"):
