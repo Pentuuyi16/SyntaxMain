@@ -62,6 +62,7 @@ def generate_trojan_link(server: dict, password: str) -> str:
 
     # TLS серверы
     elif server["security"] == "tls":
+        params["sni"] = ""
         if server.get("alpn"):
             params["alpn"] = server["alpn"]
 
