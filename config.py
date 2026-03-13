@@ -79,7 +79,7 @@ SERVERS = [
         "short_id": "3cba52d31b9744c2",
     },
     {
-        "name": "№1|✈️ Беспилотная опасность|",
+        "name": "№1| ✈️ Беспилотная опасность |",
         "tag": "antiblock",
         "panel_url": "https://vpn1.syntax-vpn.tech:21541/q8BGciAriapa43kbbB",
         "panel_user": "Vl3T6tg6hm",
