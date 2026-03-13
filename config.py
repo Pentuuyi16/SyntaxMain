@@ -62,7 +62,7 @@ TRIAL_TRAFFIC_GB = 15
 # ========================
 SERVERS = [
     {
-        "name": "🇱🇻 Латвия — Основной",
+        "name": "🇱🇻 Основной",
         "tag": "latvia",
         "panel_url": "https://vpn2.syntax-vpn.tech:7080/CEA23FKEvXftAjZk6E",
         "panel_user": "cxaW4VnoGe",
@@ -79,7 +79,7 @@ SERVERS = [
         "short_id": "3cba52d31b9744c2",
     },
     {
-        "name": "🛡 Обход глушилок",
+        "name": "✈️ Беспилотная опасность № 1",
         "tag": "antiblock",
         "panel_url": "https://vpn1.syntax-vpn.tech:21541/q8BGciAriapa43kbbB",
         "panel_user": "Vl3T6tg6hm",
