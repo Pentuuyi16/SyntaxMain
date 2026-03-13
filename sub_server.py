@@ -38,24 +38,32 @@ def generate_trojan_link(server: dict, password: str) -> str:
     params = {
         "type": server["network"],
         "security": server["security"],
-        "sni": server["sni"],
         "fp": server["fingerprint"],
-        "pbk": server["public_key"],
     }
 
-    if server.get("short_id"):
-        params["sid"] = server["short_id"]
+    # Reality серверы
+    if server["security"] == "reality":
+        params["sni"] = server["sni"]
+        params["pbk"] = server["public_key"]
 
-    if server["security"] == "reality" and server["network"] == "tcp":
-        params["flow"] = "xtls-rprx-vision"
+        if server.get("short_id"):
+            params["sid"] = server["short_id"]
 
-    if server["network"] == "xhttp":
-        params["path"] = server.get("path", "/")
-        params["host"] = ""
-        params["mode"] = "auto"
+        if server["network"] == "tcp":
+            params["flow"] = "xtls-rprx-vision"
 
-    if server.get("spx"):
-        params["spx"] = server["spx"]
+        if server["network"] == "xhttp":
+            params["path"] = server.get("path", "/")
+            params["host"] = ""
+            params["mode"] = "auto"
+
+        if server.get("spx"):
+            params["spx"] = server["spx"]
+
+    # TLS серверы
+    elif server["security"] == "tls":
+        if server.get("alpn"):
+            params["alpn"] = server["alpn"]
 
     query = urllib.parse.urlencode(params)
     name = urllib.parse.quote(server["name"])
