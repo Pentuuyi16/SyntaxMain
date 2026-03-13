@@ -53,6 +53,9 @@ def generate_trojan_link(server: dict, password: str) -> str:
         params["path"] = server.get("path", "/")
         params["mode"] = "auto"
 
+    if server.get("spx"):
+        params["spx"] = server["spx"]
+
     query = urllib.parse.urlencode(params)
     name = urllib.parse.quote(server["name"])
 
