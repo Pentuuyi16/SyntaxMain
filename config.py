@@ -11,8 +11,8 @@ ADMIN_TELEGRAM_IDS = [6397535545]
 # ========================
 # ЮKassa
 # ========================
-YUKASSA_SHOP_ID = "1240278"          # Заполнишь когда подключишь ЮKassa
-YUKASSA_SECRET_KEY = "live_vd9yzrsOo56Owbu0fEqKYi-NZtfsVBRlFm3tcNha270"     # Заполнишь когда подключишь ЮKassa
+YUKASSA_SHOP_ID = "1240278"
+YUKASSA_SECRET_KEY = "live_vd9yzrsOo56Owbu0fEqKYi-NZtfsVBRlFm3tcNha270"
 
 # ========================
 # Тарифы (можно менять)
@@ -94,6 +94,23 @@ SERVERS = [
         "fingerprint": "chrome",
         "public_key": "hsEsCyGBf-VlPx59IahEln0DVud1IpgR2-443nWrSAQ",
         "short_id": "c1a80ebffc4f063a",
+    },
+    {
+        "name": "№2| ✈️ Беспилотная опасность |",
+        "tag": "antiblock2",
+        "panel_url": "https://vpn1.syntax-vpn.tech:21541/q8BGciAriapa43kbbB",
+        "panel_user": "Vl3T6tg6hm",
+        "panel_pass": "RTDaskDU5f",
+        "inbound_id": 3,
+        "server_ip": "212.233.89.94",
+        "server_port": 4443,
+        "protocol": "trojan",
+        "network": "xhttp",
+        "security": "reality",
+        "sni": "www.cdnv-img.perekrestok.ru",
+        "fingerprint": "chrome",
+        "public_key": "X9pnhNNM0eKQR8ySmFwf-YgyrkDWIEYdp9TzgHB6K0c",
+        "short_id": "863a823e25",
     },
 ]
 

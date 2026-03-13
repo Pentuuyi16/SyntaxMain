@@ -46,8 +46,12 @@ def generate_trojan_link(server: dict, password: str) -> str:
     if server.get("short_id"):
         params["sid"] = server["short_id"]
 
-    if server["security"] == "reality":
+    if server["security"] == "reality" and server["network"] == "tcp":
         params["flow"] = "xtls-rprx-vision"
+
+    if server["network"] == "xhttp":
+        params["path"] = server.get("path", "/")
+        params["mode"] = "auto"
 
     query = urllib.parse.urlencode(params)
     name = urllib.parse.quote(server["name"])
@@ -96,7 +100,6 @@ async def subscription_endpoint(vpn_uuid: str):
 
 @app.get("/r")
 async def redirect_to_happ(url: str):
-    """Редирект-страница для открытия Happ"""
     happ_url = f"happ://add/{url}"
     html = f"""<!DOCTYPE html>
 <html>
