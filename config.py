@@ -79,6 +79,21 @@ SERVERS = [
         "short_id": "3cba52d31b9744c2",
     },
     {
+        "name": "🛡 Резерв",
+        "tag": "reserve",
+        "panel_url": "https://vpn2.syntax-vpn.tech:7080/CEA23FKEvXftAjZk6E",
+        "panel_user": "cxaW4VnoGe",
+        "panel_pass": "lPGpavSb3p",
+        "inbound_id": 1,
+        "server_ip": "vpn2.syntax-vpn.tech",
+        "server_port": 4443,
+        "protocol": "trojan",
+        "network": "tcp",
+        "security": "tls",
+        "fingerprint": "chrome",
+        "alpn": "h2,http/1.1",
+    },
+    {
         "name": "№1| ✈️ Беспилотная опасность |",
         "tag": "antiblock",
         "panel_url": "https://vpn1.syntax-vpn.tech:21541/q8BGciAriapa43kbbB",
@@ -112,22 +127,7 @@ SERVERS = [
         "public_key": "X9pnhNNM0eKQR8ySmFwf-YgyrkDWlEYdp9TzgHB6K0c",
         "short_id": "3d",
         "spx": "/",
-    },
-    {
-        "name": "🛡 Резерв",
-        "tag": "reserve",
-        "panel_url": "https://vpn2.syntax-vpn.tech:7080/CEA23FKEvXftAjZk6E",
-        "panel_user": "cxaW4VnoGe",
-        "panel_pass": "lPGpavSb3p",
-        "inbound_id": 1,
-        "server_ip": "vpn2.syntax-vpn.tech",
-        "server_port": 4443,
-        "protocol": "trojan",
-        "network": "tcp",
-        "security": "tls",
-        "fingerprint": "chrome",
-        "alpn": "h2,http/1.1",
-    },
+    }
 ]
 
 # ========================
