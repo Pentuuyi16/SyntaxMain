@@ -31,11 +31,12 @@ class XUIClient:
                 )
                 if resp.status_code == 200 and resp.json().get("success"):
                     self.cookie = resp.cookies
+                    logger.info(f"Login OK: {self.server['name']} (inbound {self.inbound_id})")
                     return True
-                logger.error(f"Login failed for {self.server['name']}: {resp.text}")
+                logger.error(f"Login FAILED: {self.server['name']} status={resp.status_code} body={resp.text}")
                 return False
         except Exception as e:
-            logger.error(f"Login error for {self.server['name']}: {e}")
+            logger.error(f"Login ERROR: {self.server['name']}: {e}")
             return False
 
     async def add_client(
@@ -67,25 +68,37 @@ class XUIClient:
             }),
         }
 
+        logger.info(
+            f">>> addClient REQUEST: server={self.server['name']} "
+            f"inbound={self.inbound_id} email={email}"
+        )
+
         try:
             async with httpx.AsyncClient(verify=False, timeout=15, cookies=self.cookie) as client:
                 resp = await client.post(
                     f"{self.base_url}/panel/api/inbounds/addClient",
                     data=client_data,
                 )
+                logger.info(
+                    f"<<< addClient RESPONSE: server={self.server['name']} "
+                    f"inbound={self.inbound_id} status={resp.status_code} body={resp.text}"
+                )
                 result = resp.json()
                 if result.get("success"):
-                    logger.info(f"Client {email} added to {self.server['name']}")
+                    logger.info(f"Client {email} added to {self.server['name']} (inbound {self.inbound_id})")
                     return True
                 else:
                     msg = result.get("msg", "")
                     if "Duplicate" in msg:
-                        logger.info(f"Client {email} already exists on {self.server['name']}")
+                        logger.info(f"Client {email} already exists on {self.server['name']} (inbound {self.inbound_id})")
                         return True
-                    logger.error(f"Add client failed on {self.server['name']}: {result}")
+                    logger.error(
+                        f"Add client FAILED: {self.server['name']} "
+                        f"inbound={self.inbound_id} result={result}"
+                    )
                     return False
         except Exception as e:
-            logger.error(f"Add client error on {self.server['name']}: {e}")
+            logger.error(f"Add client ERROR: {self.server['name']} inbound={self.inbound_id}: {e}")
             return False
 
     async def remove_client(self, email: str) -> bool:
@@ -161,6 +174,8 @@ async def add_client_to_all_servers(
         xui = XUIClient(server_config)
         ok = await xui.add_client(vpn_uuid, email, traffic_limit_bytes, expiry_time)
         results.append(ok)
+        logger.info(f"=== {server_config['name']} inbound={server_config['inbound_id']}: {'OK' if ok else 'FAIL'} ===")
+    logger.info(f"ALL SERVERS results: {results}")
     return any(results)
 
 
