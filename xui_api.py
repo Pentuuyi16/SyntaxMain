@@ -39,6 +39,10 @@ class XUIClient:
             logger.error(f"Login ERROR: {self.server['name']}: {e}")
             return False
 
+    def _unique_email(self, email: str) -> str:
+        """Уникальный email для каждого inbound (одна панель — разные inbound)"""
+        return f"{email}_{self.server['tag']}"
+
     async def add_client(
         self,
         vpn_uuid: str,
@@ -50,13 +54,15 @@ class XUIClient:
             if not await self.login():
                 return False
 
+        unique_email = self._unique_email(email)
+
         client_data = {
             "id": self.inbound_id,
             "settings": json.dumps({
                 "clients": [
                     {
                         "password": vpn_uuid,
-                        "email": email,
+                        "email": unique_email,
                         "limitIp": 3,
                         "totalGB": traffic_limit_bytes,
                         "expiryTime": expiry_time,
@@ -70,7 +76,7 @@ class XUIClient:
 
         logger.info(
             f">>> addClient REQUEST: server={self.server['name']} "
-            f"inbound={self.inbound_id} email={email}"
+            f"inbound={self.inbound_id} email={unique_email}"
         )
 
         try:
@@ -85,12 +91,12 @@ class XUIClient:
                 )
                 result = resp.json()
                 if result.get("success"):
-                    logger.info(f"Client {email} added to {self.server['name']} (inbound {self.inbound_id})")
+                    logger.info(f"Client {unique_email} added to {self.server['name']} (inbound {self.inbound_id})")
                     return True
                 else:
                     msg = result.get("msg", "")
                     if "Duplicate" in msg:
-                        logger.info(f"Client {email} already exists on {self.server['name']} (inbound {self.inbound_id})")
+                        logger.info(f"Client {unique_email} already exists on {self.server['name']} (inbound {self.inbound_id})")
                         return True
                     logger.error(
                         f"Add client FAILED: {self.server['name']} "
@@ -106,6 +112,8 @@ class XUIClient:
             if not await self.login():
                 return False
 
+        unique_email = self._unique_email(email)
+
         try:
             async with httpx.AsyncClient(verify=False, timeout=15, cookies=self.cookie) as client:
                 resp = await client.get(
@@ -117,12 +125,12 @@ class XUIClient:
 
                 target = None
                 for c in clients:
-                    if c.get("email") == email:
+                    if c.get("email") == unique_email:
                         target = c
                         break
 
                 if not target:
-                    logger.warning(f"Client {email} not found on {self.server['name']}")
+                    logger.warning(f"Client {unique_email} not found on {self.server['name']}")
                     return True
 
                 resp = await client.post(
@@ -130,7 +138,7 @@ class XUIClient:
                 )
                 result = resp.json()
                 if result.get("success"):
-                    logger.info(f"Client {email} removed from {self.server['name']}")
+                    logger.info(f"Client {unique_email} removed from {self.server['name']}")
                     return True
                 else:
                     logger.error(f"Remove client failed on {self.server['name']}: {result}")
@@ -144,10 +152,12 @@ class XUIClient:
             if not await self.login():
                 return None
 
+        unique_email = self._unique_email(email)
+
         try:
             async with httpx.AsyncClient(verify=False, timeout=15, cookies=self.cookie) as client:
                 resp = await client.get(
-                    f"{self.base_url}/panel/api/inbounds/getClientTraffics/{email}",
+                    f"{self.base_url}/panel/api/inbounds/getClientTraffics/{unique_email}",
                 )
                 result = resp.json()
                 if result.get("success") and result.get("obj"):
