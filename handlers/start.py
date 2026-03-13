@@ -14,7 +14,7 @@ def get_main_menu(user_id: int, show_trial: bool = False) -> InlineKeyboardMarku
     buttons = []
 
     if show_trial:
-        buttons.append([InlineKeyboardButton(text="🎁 Получить бесплатный пробный период", callback_data="trial")])
+        buttons.append([InlineKeyboardButton(text="🎁 Бесплатный пробный период", callback_data="trial")])
 
     buttons.append([InlineKeyboardButton(text="🤍 Купить подписку", callback_data="buy")])
     buttons.append([
