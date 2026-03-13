@@ -69,16 +69,24 @@ async def trial_handler(callback: CallbackQuery):
     mark_trial_used(callback.from_user.id)
 
     sub_link = get_sub_link(user["vpn_uuid"])
+    happ_redirect = f"https://{DOMAIN}/r?url={sub_link}"
     text = (
-        f"🎉 <b>Пробный период активирован!</b>\n\n"
-        f"⏰ Срок: {TRIAL_DURATION_DAYS} дн.\n"
-        f"📦 Трафик: {TRIAL_TRAFFIC_GB} ГБ\n\n"
-        f"🔗 <b>Твоя ссылка подписки:</b>\n"
-        f"<code>{sub_link}</code>\n\n"
-        f"Скопируй и вставь в приложение (V2RayNG, Hiddify, Streisand).\n"
-        f"Все серверы появятся автоматически! 🚀"
+        f"Вы активировали пробную версию на {TRIAL_DURATION_DAYS} дня 🤍\n\n"
+        f"🗝 Ключ:\n"
+        f"<code>{sub_link}</code>"
     )
-    await callback.message.answer(text)
+    buttons = [
+        [InlineKeyboardButton(text="Добавить VPN в приложение", url=happ_redirect)],
+        [InlineKeyboardButton(text="Установить приложение", callback_data="download_app")],
+        [InlineKeyboardButton(text="🚪 Главное меню", callback_data="back_start")],
+    ]
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    if has_media(callback.message):
+        await callback.message.delete()
+        await callback.message.answer(text, reply_markup=kb)
+    else:
+        await callback.message.edit_text(text, reply_markup=kb)
 
 
 @router.callback_query(F.data == "buy")

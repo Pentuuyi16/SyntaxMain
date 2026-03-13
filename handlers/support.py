@@ -14,8 +14,6 @@ def has_media(message) -> bool:
 async def support_handler(callback: CallbackQuery):
     await callback.answer()
 
-    text = "🎧 <b>Поддержка Syntax VPN</b>"
-
     buttons = [
         [InlineKeyboardButton(text="🔌 Как подключить VPN?", callback_data="how_to_connect")],
         [InlineKeyboardButton(text="⁉️ Часто задаваемые вопросы", callback_data="faq")],
