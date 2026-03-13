@@ -109,7 +109,7 @@ SERVERS = [
         "security": "reality",
         "sni": "www.cdnv-img.perekrestok.ru",
         "fingerprint": "chrome",
-        "public_key": "X9pnhNNM0eKQR8ySmFwf-YgyrkDWIEYdp9TzgHB6K0c",
+        "public_key": "X9pnhNNM0eKQR8ySmFwf-YgyrkDWlEYdp9TzgHB6K0c",
         "short_id": "3d",
         "spx": "/",
     },
