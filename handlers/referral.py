@@ -1,14 +1,13 @@
 from aiogram import Router, F
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 
-from config import TELEGRAM_BOT_TOKEN
 from database import get_referral_count, get_referral_bonus_days
 
 router = Router()
 
 REFERRAL_VIDEO = "BAACAgIAAxkBAAICKmm1WlbRxNOjJ4GFnefGbfKOhmqMAALYnQACs0qpSSpDhog24PY9OgQ"
 
-BOT_USERNAME = "SyntaxVPNBot"
+BOT_USERNAME = "syntxvpn_bot"
 
 
 def has_media(message) -> bool:
