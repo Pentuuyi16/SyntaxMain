@@ -49,35 +49,54 @@ class XUIClient:
         traffic_limit_bytes: int = 0,
         expiry_time: int = 0,
     ) -> bool:
-        """Обновляет существующего клиента (expiry, traffic и т.д.)"""
+        """Обновляет существующего клиента — сначала находит его password в панели"""
         if not self.cookie:
             if not await self.login():
                 return False
 
         unique_email = self._unique_email(email)
 
-        client_data = {
-            "id": self.inbound_id,
-            "settings": json.dumps({
-                "clients": [
-                    {
-                        "password": vpn_uuid,
-                        "email": unique_email,
-                        "limitIp": 3,
-                        "totalGB": traffic_limit_bytes,
-                        "expiryTime": expiry_time,
-                        "enable": True,
-                        "tgId": "",
-                        "subId": "",
-                    }
-                ]
-            }),
-        }
-
         try:
             async with httpx.AsyncClient(verify=False, timeout=15, cookies=self.cookie) as client:
+                # Получаем inbound чтобы найти password клиента
+                resp = await client.get(
+                    f"{self.base_url}/panel/api/inbounds/get/{self.inbound_id}",
+                )
+                inbound = resp.json().get("obj", {})
+                settings = json.loads(inbound.get("settings", "{}"))
+                clients = settings.get("clients", [])
+
+                existing_password = None
+                for c in clients:
+                    if c.get("email") == unique_email:
+                        existing_password = c.get("password")
+                        break
+
+                if not existing_password:
+                    logger.error(f"Update: client {unique_email} not found on {self.server['name']}")
+                    return False
+
+                # Обновляем клиента используя его существующий password в URL
+                client_data = {
+                    "id": self.inbound_id,
+                    "settings": json.dumps({
+                        "clients": [
+                            {
+                                "password": vpn_uuid,
+                                "email": unique_email,
+                                "limitIp": 3,
+                                "totalGB": traffic_limit_bytes,
+                                "expiryTime": expiry_time,
+                                "enable": True,
+                                "tgId": "",
+                                "subId": "",
+                            }
+                        ]
+                    }),
+                }
+
                 resp = await client.post(
-                    f"{self.base_url}/panel/api/inbounds/updateClient/{vpn_uuid}",
+                    f"{self.base_url}/panel/api/inbounds/updateClient/{existing_password}",
                     data=client_data,
                 )
                 logger.info(
