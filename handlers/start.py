@@ -10,7 +10,9 @@ from database import (
     get_user_by_telegram_id,
     add_referral,
     extend_subscription,
+    create_subscription,
 )
+from xui_api import add_client_to_all_servers
 
 router = Router()
 
@@ -49,13 +51,14 @@ def get_welcome_text(first_name: str) -> str:
 
 @router.message(CommandStart())
 async def cmd_start(message: types.Message):
+    from bot import bot
+
     # Проверяем реферальную ссылку
     referrer_id = None
     args = message.text.split()
     if len(args) > 1 and args[1].startswith("ref_"):
         try:
             referrer_id = int(args[1].replace("ref_", ""))
-            # Нельзя пригласить самого себя
             if referrer_id == message.from_user.id:
                 referrer_id = None
         except ValueError:
@@ -73,20 +76,38 @@ async def cmd_start(message: types.Message):
         if referrer:
             added = add_referral(referrer_id, message.from_user.id, bonus_days=REFERRAL_BONUS_DAYS)
             if added:
-                # Продлеваем подписку рефереру
                 referrer_user = get_or_create_user(referrer_id)
                 sub = get_active_subscription(referrer_user["id"])
+
                 if sub:
+                    # Есть подписка — продлеваем
                     extend_subscription(referrer_user["id"], REFERRAL_BONUS_DAYS)
-                    try:
-                        from bot import bot
-                        await bot.send_message(
-                            referrer_id,
-                            f"🎉 Ваш друг присоединился по реферальной ссылке!\n"
-                            f"Вам начислено <b>+{REFERRAL_BONUS_DAYS} дня</b> к подписке!",
-                        )
-                    except Exception:
-                        pass
+                else:
+                    # Нет подписки — создаём новую и добавляем ключ на серверы
+                    email = f"tg_{referrer_id}"
+                    from datetime import datetime, timedelta
+                    expiry_ms = int(
+                        (datetime.utcnow() + timedelta(days=REFERRAL_BONUS_DAYS)).timestamp() * 1000
+                    )
+                    await add_client_to_all_servers(
+                        vpn_uuid=referrer_user["vpn_uuid"],
+                        email=email,
+                        traffic_limit_bytes=0,
+                        expiry_time=expiry_ms,
+                    )
+                    create_subscription(referrer_user["id"], "referral", REFERRAL_BONUS_DAYS, 0)
+
+                try:
+                    sub_link = f"https://{DOMAIN}{SUB_PATH}/{referrer_user['vpn_uuid']}"
+                    await bot.send_message(
+                        referrer_id,
+                        f"🎉 Ваш друг присоединился по реферальной ссылке!\n"
+                        f"Вам начислено <b>+{REFERRAL_BONUS_DAYS} дня</b> к подписке!\n\n"
+                        f"🗝 Ваш ключ:\n"
+                        f"<code>{sub_link}</code>",
+                    )
+                except Exception:
+                    pass
 
     first_name = message.from_user.first_name or "друг"
     text = get_welcome_text(first_name)
