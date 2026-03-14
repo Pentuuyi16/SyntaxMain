@@ -35,10 +35,16 @@ async def mykey_handler(callback: CallbackQuery):
         ]
         kb = InlineKeyboardMarkup(inline_keyboard=buttons)
         if has_media(callback.message):
-            await callback.message.delete()
+            try:
+                await callback.message.delete()
+            except Exception:
+                pass
             await callback.message.answer(text, reply_markup=kb)
         else:
-            await callback.message.edit_text(text, reply_markup=kb)
+            try:
+                await callback.message.edit_text(text, reply_markup=kb)
+            except Exception:
+                await callback.message.answer(text, reply_markup=kb)
         return
 
     email = f"tg_{callback.from_user.id}"
@@ -67,7 +73,13 @@ async def mykey_handler(callback: CallbackQuery):
     ]
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
     if has_media(callback.message):
-        await callback.message.delete()
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
         await callback.message.answer(text, reply_markup=kb)
     else:
-        await callback.message.edit_text(text, reply_markup=kb)
+        try:
+            await callback.message.edit_text(text, reply_markup=kb)
+        except Exception:
+            await callback.message.answer(text, reply_markup=kb)
