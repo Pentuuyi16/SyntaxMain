@@ -40,8 +40,60 @@ class XUIClient:
             return False
 
     def _unique_email(self, email: str) -> str:
-        """Уникальный email для каждого inbound (одна панель — разные inbound)"""
         return f"{email}_{self.server['tag']}"
+
+    async def update_client(
+        self,
+        vpn_uuid: str,
+        email: str,
+        traffic_limit_bytes: int = 0,
+        expiry_time: int = 0,
+    ) -> bool:
+        """Обновляет существующего клиента (expiry, traffic и т.д.)"""
+        if not self.cookie:
+            if not await self.login():
+                return False
+
+        unique_email = self._unique_email(email)
+
+        client_data = {
+            "id": self.inbound_id,
+            "settings": json.dumps({
+                "clients": [
+                    {
+                        "password": vpn_uuid,
+                        "email": unique_email,
+                        "limitIp": 3,
+                        "totalGB": traffic_limit_bytes,
+                        "expiryTime": expiry_time,
+                        "enable": True,
+                        "tgId": "",
+                        "subId": "",
+                    }
+                ]
+            }),
+        }
+
+        try:
+            async with httpx.AsyncClient(verify=False, timeout=15, cookies=self.cookie) as client:
+                resp = await client.post(
+                    f"{self.base_url}/panel/api/inbounds/updateClient/{vpn_uuid}",
+                    data=client_data,
+                )
+                logger.info(
+                    f"<<< updateClient RESPONSE: server={self.server['name']} "
+                    f"inbound={self.inbound_id} status={resp.status_code} body={resp.text}"
+                )
+                result = resp.json()
+                if result.get("success"):
+                    logger.info(f"Client {unique_email} updated on {self.server['name']} (inbound {self.inbound_id})")
+                    return True
+                else:
+                    logger.error(f"Update client FAILED: {self.server['name']} inbound={self.inbound_id} result={result}")
+                    return False
+        except Exception as e:
+            logger.error(f"Update client ERROR: {self.server['name']} inbound={self.inbound_id}: {e}")
+            return False
 
     async def add_client(
         self,
@@ -96,8 +148,8 @@ class XUIClient:
                 else:
                     msg = result.get("msg", "")
                     if "Duplicate" in msg:
-                        logger.info(f"Client {unique_email} already exists on {self.server['name']} (inbound {self.inbound_id})")
-                        return True
+                        logger.info(f"Client {unique_email} duplicate on {self.server['name']} — updating...")
+                        return await self.update_client(vpn_uuid, email, traffic_limit_bytes, expiry_time)
                     logger.error(
                         f"Add client FAILED: {self.server['name']} "
                         f"inbound={self.inbound_id} result={result}"
