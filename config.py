@@ -141,4 +141,5 @@ DOMAIN = "syntax-vpn.tech"
 # ========================
 # База данных
 # ========================
+REFERRAL_BONUS_DAYS = 3
 DATABASE_PATH = "data/syntaxvpn.db"

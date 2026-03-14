@@ -2,8 +2,15 @@ from aiogram import Router, types, F
 from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 
-from config import ADMIN_TELEGRAM_IDS, DOMAIN, SUB_PATH
-from database import get_or_create_user, get_active_subscription, has_used_trial
+from config import ADMIN_TELEGRAM_IDS, DOMAIN, SUB_PATH, REFERRAL_BONUS_DAYS
+from database import (
+    get_or_create_user,
+    get_active_subscription,
+    has_used_trial,
+    get_user_by_telegram_id,
+    add_referral,
+    extend_subscription,
+)
 
 router = Router()
 
@@ -42,7 +49,45 @@ def get_welcome_text(first_name: str) -> str:
 
 @router.message(CommandStart())
 async def cmd_start(message: types.Message):
-    user = get_or_create_user(message.from_user.id, message.from_user.username)
+    # Проверяем реферальную ссылку
+    referrer_id = None
+    args = message.text.split()
+    if len(args) > 1 and args[1].startswith("ref_"):
+        try:
+            referrer_id = int(args[1].replace("ref_", ""))
+            # Нельзя пригласить самого себя
+            if referrer_id == message.from_user.id:
+                referrer_id = None
+        except ValueError:
+            referrer_id = None
+
+    # Проверяем — новый ли это пользователь
+    existing_user = get_user_by_telegram_id(message.from_user.id)
+    is_new_user = existing_user is None
+
+    user = get_or_create_user(message.from_user.id, message.from_user.username, referred_by=referrer_id)
+
+    # Начисляем бонус рефереру если новый пользователь пришёл по ссылке
+    if is_new_user and referrer_id:
+        referrer = get_user_by_telegram_id(referrer_id)
+        if referrer:
+            added = add_referral(referrer_id, message.from_user.id, bonus_days=REFERRAL_BONUS_DAYS)
+            if added:
+                # Продлеваем подписку рефереру
+                referrer_user = get_or_create_user(referrer_id)
+                sub = get_active_subscription(referrer_user["id"])
+                if sub:
+                    extend_subscription(referrer_user["id"], REFERRAL_BONUS_DAYS)
+                    try:
+                        from bot import bot
+                        await bot.send_message(
+                            referrer_id,
+                            f"🎉 Ваш друг присоединился по реферальной ссылке!\n"
+                            f"Вам начислено <b>+{REFERRAL_BONUS_DAYS} дня</b> к подписке!",
+                        )
+                    except Exception:
+                        pass
+
     first_name = message.from_user.first_name or "друг"
     text = get_welcome_text(first_name)
     sub = get_active_subscription(user["id"])

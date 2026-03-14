@@ -22,6 +22,7 @@ def init_db():
                 telegram_id INTEGER UNIQUE NOT NULL,
                 username TEXT,
                 vpn_uuid TEXT UNIQUE NOT NULL,
+                referred_by INTEGER DEFAULT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -54,7 +55,21 @@ def init_db():
                 telegram_id INTEGER UNIQUE NOT NULL,
                 used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
-        """)
+
+            CREATE TABLE IF NOT EXISTS referrals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                referrer_telegram_id INTEGER NOT NULL,
+                referred_telegram_id INTEGER UNIQUE NOT NULL,
+                bonus_days_given INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """);
+
+        # Добавляем колонку referred_by если её нет (для старых баз)
+        try:
+            db.execute("ALTER TABLE users ADD COLUMN referred_by INTEGER DEFAULT NULL")
+        except Exception:
+            pass
 
 
 @contextmanager
@@ -73,7 +88,7 @@ def get_db():
 # Users
 # ==================
 
-def get_or_create_user(telegram_id: int, username: str = None) -> dict:
+def get_or_create_user(telegram_id: int, username: str = None, referred_by: int = None) -> dict:
     """Получает или создаёт пользователя, возвращает dict"""
     with get_db() as db:
         row = db.execute(
@@ -84,8 +99,8 @@ def get_or_create_user(telegram_id: int, username: str = None) -> dict:
 
         vpn_uuid = str(uuid.uuid4())
         db.execute(
-            "INSERT INTO users (telegram_id, username, vpn_uuid) VALUES (?, ?, ?)",
-            (telegram_id, username, vpn_uuid),
+            "INSERT INTO users (telegram_id, username, vpn_uuid, referred_by) VALUES (?, ?, ?, ?)",
+            (telegram_id, username, vpn_uuid, referred_by),
         )
         row = db.execute(
             "SELECT * FROM users WHERE telegram_id = ?", (telegram_id,)
@@ -144,6 +159,19 @@ def get_active_subscription(user_id: int) -> dict | None:
             (user_id, now),
         ).fetchone()
         return dict(row) if row else None
+
+
+def extend_subscription(user_id: int, extra_days: int):
+    """Продлевает активную подписку на extra_days дней"""
+    sub = get_active_subscription(user_id)
+    if sub:
+        expires = datetime.fromisoformat(sub["expires_at"])
+        new_expires = expires + timedelta(days=extra_days)
+        with get_db() as db:
+            db.execute(
+                "UPDATE subscriptions SET expires_at = ? WHERE id = ?",
+                (new_expires.isoformat(), sub["id"]),
+            )
 
 
 def get_all_active_subscriptions() -> list[dict]:
@@ -232,3 +260,45 @@ def get_active_subs_count() -> int:
             (now,),
         ).fetchone()
         return row["cnt"]
+
+
+# ==================
+# Referrals
+# ==================
+
+def add_referral(referrer_telegram_id: int, referred_telegram_id: int, bonus_days: int = 3):
+    """Записывает реферала и начисляет бонус"""
+    with get_db() as db:
+        # Проверяем что такого реферала ещё нет
+        existing = db.execute(
+            "SELECT * FROM referrals WHERE referred_telegram_id = ?",
+            (referred_telegram_id,),
+        ).fetchone()
+        if existing:
+            return False
+
+        db.execute(
+            "INSERT INTO referrals (referrer_telegram_id, referred_telegram_id, bonus_days_given) VALUES (?, ?, ?)",
+            (referrer_telegram_id, referred_telegram_id, bonus_days),
+        )
+    return True
+
+
+def get_referral_count(telegram_id: int) -> int:
+    """Количество приглашённых друзей"""
+    with get_db() as db:
+        row = db.execute(
+            "SELECT COUNT(*) as cnt FROM referrals WHERE referrer_telegram_id = ?",
+            (telegram_id,),
+        ).fetchone()
+        return row["cnt"]
+
+
+def get_referral_bonus_days(telegram_id: int) -> int:
+    """Сколько бонусных дней получено"""
+    with get_db() as db:
+        row = db.execute(
+            "SELECT COALESCE(SUM(bonus_days_given), 0) as total FROM referrals WHERE referrer_telegram_id = ?",
+            (telegram_id,),
+        ).fetchone()
+        return row["total"]
