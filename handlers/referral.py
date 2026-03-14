@@ -37,7 +37,7 @@ async def referral_handler(callback: CallbackQuery):
     buttons = [
         [InlineKeyboardButton(
             text="📨 Пригласить друзей",
-            switch_inline_query=f"Присоединяйся к SyntaxVPN! Получи бесплатный доступ: {ref_link}"
+            url=f"https://t.me/share/url?url={ref_link}"
         )],
         [InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")],
     ]
