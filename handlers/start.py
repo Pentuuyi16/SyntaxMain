@@ -99,16 +99,22 @@ async def cmd_start(message: types.Message):
 
                 try:
                     sub_link = f"https://{DOMAIN}{SUB_PATH}/{referrer_user['vpn_uuid']}"
+                    happ_redirect = f"https://{DOMAIN}/r?url={sub_link}"
+                    buttons = InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="Добавить VPN в приложение", url=happ_redirect)],
+                        [InlineKeyboardButton(text="🚪 Главное меню", callback_data="back_start")],
+                    ])
                     await bot.send_message(
                         referrer_id,
                         f"🎉 Ваш друг присоединился по реферальной ссылке!\n"
                         f"Вам начислено <b>+{REFERRAL_BONUS_DAYS} дня</b> к подписке!\n\n"
                         f"🗝 Ваш ключ:\n"
                         f"<code>{sub_link}</code>",
+                        reply_markup=buttons,
                     )
                 except Exception:
                     pass
-
+                
     first_name = message.from_user.first_name or "друг"
     text = get_welcome_text(first_name)
     sub = get_active_subscription(user["id"])
