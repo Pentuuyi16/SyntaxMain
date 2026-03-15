@@ -61,8 +61,24 @@ TRIAL_TRAFFIC_GB = 150
 # Серверы 3X-UI
 # ========================
 SERVERS = [
+
     {
         "name": "🇱🇻 Основной",
+        "tag": "reserve",
+        "panel_url": "https://vpn2.syntax-vpn.tech:7080/CEA23FKEvXftAjZk6E",
+        "panel_user": "cxaW4VnoGe",
+        "panel_pass": "lPGpavSb3p",
+        "inbound_id": 1,
+        "server_ip": "vpn2.syntax-vpn.tech",
+        "server_port": 4443,
+        "protocol": "trojan",
+        "network": "tcp",
+        "security": "tls",
+        "fingerprint": "chrome",
+        "alpn": "h2,http/1.1",
+    },
+    {
+        "name": "🛡 Резерв",
         "tag": "latvia",
         "panel_url": "https://vpn2.syntax-vpn.tech:7080/CEA23FKEvXftAjZk6E",
         "panel_user": "cxaW4VnoGe",
@@ -79,39 +95,7 @@ SERVERS = [
         "short_id": "3cba52d31b9744c2",
     },
     {
-        "name": "🛡 Резерв",
-        "tag": "reserve",
-        "panel_url": "https://vpn2.syntax-vpn.tech:7080/CEA23FKEvXftAjZk6E",
-        "panel_user": "cxaW4VnoGe",
-        "panel_pass": "lPGpavSb3p",
-        "inbound_id": 1,
-        "server_ip": "vpn2.syntax-vpn.tech",
-        "server_port": 4443,
-        "protocol": "trojan",
-        "network": "tcp",
-        "security": "tls",
-        "fingerprint": "chrome",
-        "alpn": "h2,http/1.1",
-    },
-    {
         "name": "№1| ✈️ Беспилотная опасность |",
-        "tag": "antiblock",
-        "panel_url": "https://vpn1.syntax-vpn.tech:21541/q8BGciAriapa43kbbB",
-        "panel_user": "Vl3T6tg6hm",
-        "panel_pass": "RTDaskDU5f",
-        "inbound_id": 4,
-        "server_ip": "vpn1.syntax-vpn.tech",
-        "server_port": 8443,
-        "protocol": "trojan",
-        "network": "tcp",
-        "security": "reality",
-        "sni": "www.cdnv-img.perekrestok.ru",
-        "fingerprint": "chrome",
-        "public_key": "hsEsCyGBf-VlPx59IahEln0DVud1IpgR2-443nWrSAQ",
-        "short_id": "c1a80ebffc4f063a",
-    },
-    {
-        "name": "№2| ✈️ Беспилотная опасность |",
         "tag": "antiblock2",
         "panel_url": "https://vpn1.syntax-vpn.tech:21541/q8BGciAriapa43kbbB",
         "panel_user": "Vl3T6tg6hm",
@@ -128,6 +112,24 @@ SERVERS = [
         "short_id": "3d",
         "spx": "/",
     },
+    {
+        "name": "№2| ✈️ Беспилотная опасность |",
+        "tag": "antiblock",
+        "panel_url": "https://vpn1.syntax-vpn.tech:21541/q8BGciAriapa43kbbB",
+        "panel_user": "Vl3T6tg6hm",
+        "panel_pass": "RTDaskDU5f",
+        "inbound_id": 4,
+        "server_ip": "vpn1.syntax-vpn.tech",
+        "server_port": 8443,
+        "protocol": "trojan",
+        "network": "tcp",
+        "security": "reality",
+        "sni": "www.cdnv-img.perekrestok.ru",
+        "fingerprint": "chrome",
+        "public_key": "hsEsCyGBf-VlPx59IahEln0DVud1IpgR2-443nWrSAQ",
+        "short_id": "c1a80ebffc4f063a",
+    }
+    
 ]
 
 # ========================
