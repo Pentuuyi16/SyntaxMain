@@ -49,9 +49,6 @@ def generate_trojan_link(server: dict, password: str) -> str:
         if server.get("short_id"):
             params["sid"] = server["short_id"]
 
-        if server["network"] == "tcp":
-            params["flow"] = "xtls-rprx-vision"
-
         if server["network"] == "xhttp":
             params["path"] = server.get("path", "/")
             params["host"] = ""
@@ -170,7 +167,6 @@ async def yookassa_webhook(request: Request):
     user = dict(user_row)
     email = f"tg_{user['telegram_id']}"
 
-    # Считаем expiry с учётом текущей подписки
     new_expires = calculate_new_expiry(user_id, plan["duration_days"])
     expiry_ms = int(new_expires.timestamp() * 1000)
     traffic_bytes = plan["traffic_gb"] * 1024 * 1024 * 1024 if plan["traffic_gb"] > 0 else 0
