@@ -52,7 +52,8 @@ async def mykey_handler(callback: CallbackQuery):
     used_gb = format_gb(traffic["total"])
     sub_link = get_sub_link(user["vpn_uuid"])
     expires = datetime.fromisoformat(sub["expires_at"])
-    days_left = (expires - datetime.utcnow()).days
+    import math
+    days_left = math.ceil((expires - datetime.utcnow()).total_seconds() / 86400)
 
     text = (
         f"👁‍🗨 Лимит трафика: ♾️Безлимит\n"
