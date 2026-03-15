@@ -63,9 +63,8 @@ def init_db():
                 bonus_days_given INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
-        """);
+        """)
 
-        # Добавляем колонку referred_by если её нет (для старых баз)
         try:
             db.execute("ALTER TABLE users ADD COLUMN referred_by INTEGER DEFAULT NULL")
         except Exception:
@@ -89,7 +88,6 @@ def get_db():
 # ==================
 
 def get_or_create_user(telegram_id: int, username: str = None, referred_by: int = None) -> dict:
-    """Получает или создаёт пользователя, возвращает dict"""
     with get_db() as db:
         row = db.execute(
             "SELECT * FROM users WHERE telegram_id = ?", (telegram_id,)
@@ -109,7 +107,6 @@ def get_or_create_user(telegram_id: int, username: str = None, referred_by: int 
 
 
 def get_user_by_uuid(vpn_uuid: str) -> dict | None:
-    """Ищет пользователя по VPN UUID"""
     with get_db() as db:
         row = db.execute(
             "SELECT * FROM users WHERE vpn_uuid = ?", (vpn_uuid,)
@@ -129,13 +126,29 @@ def get_user_by_telegram_id(telegram_id: int) -> dict | None:
 # Subscriptions
 # ==================
 
-def create_subscription(user_id: int, plan_id: str, duration_days: int, traffic_gb: int = 0) -> dict:
-    """Создаёт подписку"""
+def calculate_new_expiry(user_id: int, duration_days: int) -> datetime:
+    """Считает новую дату окончания: если есть активная подписка — прибавляет к ней, иначе от сейчас"""
     now = datetime.utcnow()
-    expires = now + timedelta(days=duration_days)
+    sub = get_active_subscription(user_id)
+    if sub:
+        current_expires = datetime.fromisoformat(sub["expires_at"])
+        if current_expires > now:
+            return current_expires + timedelta(days=duration_days)
+    return now + timedelta(days=duration_days)
+
+
+def create_subscription(user_id: int, plan_id: str, duration_days: int, traffic_gb: int = 0) -> dict:
+    """Создаёт или продлевает подписку"""
+    now = datetime.utcnow()
+    expires = calculate_new_expiry(user_id, duration_days)
     traffic_bytes = traffic_gb * 1024 * 1024 * 1024 if traffic_gb > 0 else 0
 
+    # Деактивируем старые подписки
     with get_db() as db:
+        db.execute(
+            "UPDATE subscriptions SET is_active = 0 WHERE user_id = ? AND is_active = 1",
+            (user_id,),
+        )
         db.execute(
             """INSERT INTO subscriptions (user_id, plan_id, starts_at, expires_at, traffic_limit_bytes)
                VALUES (?, ?, ?, ?, ?)""",
@@ -149,7 +162,6 @@ def create_subscription(user_id: int, plan_id: str, duration_days: int, traffic_
 
 
 def get_active_subscription(user_id: int) -> dict | None:
-    """Возвращает активную подписку пользователя"""
     now = datetime.utcnow().isoformat()
     with get_db() as db:
         row = db.execute(
@@ -161,8 +173,8 @@ def get_active_subscription(user_id: int) -> dict | None:
         return dict(row) if row else None
 
 
-def extend_subscription(user_id: int, extra_days: int):
-    """Продлевает активную подписку на extra_days дней"""
+def extend_subscription(user_id: int, extra_days: int) -> datetime:
+    """Продлевает активную подписку на extra_days дней. Возвращает новую дату окончания."""
     sub = get_active_subscription(user_id)
     if sub:
         expires = datetime.fromisoformat(sub["expires_at"])
@@ -172,10 +184,11 @@ def extend_subscription(user_id: int, extra_days: int):
                 "UPDATE subscriptions SET expires_at = ? WHERE id = ?",
                 (new_expires.isoformat(), sub["id"]),
             )
+        return new_expires
+    return None
 
 
 def get_all_active_subscriptions() -> list[dict]:
-    """Все активные подписки"""
     now = datetime.utcnow().isoformat()
     with get_db() as db:
         rows = db.execute(
@@ -267,9 +280,7 @@ def get_active_subs_count() -> int:
 # ==================
 
 def add_referral(referrer_telegram_id: int, referred_telegram_id: int, bonus_days: int = 3):
-    """Записывает реферала и начисляет бонус"""
     with get_db() as db:
-        # Проверяем что такого реферала ещё нет
         existing = db.execute(
             "SELECT * FROM referrals WHERE referred_telegram_id = ?",
             (referred_telegram_id,),
@@ -285,7 +296,6 @@ def add_referral(referrer_telegram_id: int, referred_telegram_id: int, bonus_day
 
 
 def get_referral_count(telegram_id: int) -> int:
-    """Количество приглашённых друзей"""
     with get_db() as db:
         row = db.execute(
             "SELECT COUNT(*) as cnt FROM referrals WHERE referrer_telegram_id = ?",
@@ -295,7 +305,6 @@ def get_referral_count(telegram_id: int) -> int:
 
 
 def get_referral_bonus_days(telegram_id: int) -> int:
-    """Сколько бонусных дней получено"""
     with get_db() as db:
         row = db.execute(
             "SELECT COALESCE(SUM(bonus_days_given), 0) as total FROM referrals WHERE referrer_telegram_id = ?",

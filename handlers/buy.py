@@ -8,6 +8,7 @@ from database import (
     get_or_create_user,
     get_active_subscription,
     create_subscription,
+    calculate_new_expiry,
     create_payment as db_create_payment,
     confirm_payment as db_confirm_payment,
     get_payment_by_yukassa_id,
@@ -83,10 +84,16 @@ async def trial_handler(callback: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     if has_media(callback.message):
-        await callback.message.delete()
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
         await callback.message.answer(text, reply_markup=kb)
     else:
-        await callback.message.edit_text(text, reply_markup=kb)
+        try:
+            await callback.message.edit_text(text, reply_markup=kb)
+        except Exception:
+            await callback.message.answer(text, reply_markup=kb)
 
 
 @router.callback_query(F.data == "buy")
@@ -113,10 +120,16 @@ async def buy_handler(callback: CallbackQuery):
 
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
     if has_media(callback.message):
-        await callback.message.delete()
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
         await callback.message.answer(text, reply_markup=kb)
     else:
-        await callback.message.edit_text(text, reply_markup=kb)
+        try:
+            await callback.message.edit_text(text, reply_markup=kb)
+        except Exception:
+            await callback.message.answer(text, reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith("pay_"))
@@ -155,10 +168,16 @@ async def pay_handler(callback: CallbackQuery):
         f"<b>Подтверждение об успешной оплате приходит в течение нескольких секунд</b>"
     )
     if has_media(callback.message):
-        await callback.message.delete()
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
         await callback.message.answer(text, reply_markup=kb)
     else:
-        await callback.message.edit_text(text, reply_markup=kb)
+        try:
+            await callback.message.edit_text(text, reply_markup=kb)
+        except Exception:
+            await callback.message.answer(text, reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith("check_"))
@@ -185,9 +204,9 @@ async def check_payment_handler(callback: CallbackQuery):
         user = get_or_create_user(callback.from_user.id, callback.from_user.username)
         email = f"tg_{callback.from_user.id}"
 
-        expiry_ms = int(
-            (datetime.utcnow() + timedelta(days=plan["duration_days"])).timestamp() * 1000
-        )
+        # Считаем expiry с учётом текущей подписки
+        new_expires = calculate_new_expiry(user["id"], plan["duration_days"])
+        expiry_ms = int(new_expires.timestamp() * 1000)
         traffic_bytes = plan["traffic_gb"] * 1024 * 1024 * 1024 if plan["traffic_gb"] > 0 else 0
 
         ok = await add_client_to_all_servers(
@@ -229,10 +248,16 @@ async def check_payment_handler(callback: CallbackQuery):
         ]
         kb = InlineKeyboardMarkup(inline_keyboard=buttons)
         if has_media(callback.message):
-            await callback.message.delete()
+            try:
+                await callback.message.delete()
+            except Exception:
+                pass
             await callback.message.answer(text, reply_markup=kb)
         else:
-            await callback.message.edit_text(text, reply_markup=kb)
+            try:
+                await callback.message.edit_text(text, reply_markup=kb)
+            except Exception:
+                await callback.message.answer(text, reply_markup=kb)
 
         for admin_id in ADMIN_TELEGRAM_IDS:
             try:

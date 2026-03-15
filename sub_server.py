@@ -15,6 +15,7 @@ from database import (
     get_active_subscription,
     get_or_create_user,
     create_subscription,
+    calculate_new_expiry,
     get_payment_by_yukassa_id,
     confirm_payment as db_confirm_payment,
     get_db,
@@ -41,7 +42,6 @@ def generate_trojan_link(server: dict, password: str) -> str:
         "fp": server["fingerprint"],
     }
 
-    # Reality серверы
     if server["security"] == "reality":
         params["sni"] = server["sni"]
         params["pbk"] = server["public_key"]
@@ -60,7 +60,6 @@ def generate_trojan_link(server: dict, password: str) -> str:
         if server.get("spx"):
             params["spx"] = server["spx"]
 
-    # TLS серверы
     elif server["security"] == "tls":
         params["sni"] = ""
         if server.get("alpn"):
@@ -171,9 +170,9 @@ async def yookassa_webhook(request: Request):
     user = dict(user_row)
     email = f"tg_{user['telegram_id']}"
 
-    expiry_ms = int(
-        (datetime.utcnow() + timedelta(days=plan["duration_days"])).timestamp() * 1000
-    )
+    # Считаем expiry с учётом текущей подписки
+    new_expires = calculate_new_expiry(user_id, plan["duration_days"])
+    expiry_ms = int(new_expires.timestamp() * 1000)
     traffic_bytes = plan["traffic_gb"] * 1024 * 1024 * 1024 if plan["traffic_gb"] > 0 else 0
 
     ok = await add_client_to_all_servers(

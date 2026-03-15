@@ -1,6 +1,7 @@
 from aiogram import Router, types, F
 from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+from datetime import datetime, timedelta
 
 from config import ADMIN_TELEGRAM_IDS, DOMAIN, SUB_PATH, REFERRAL_BONUS_DAYS
 from database import (
@@ -11,6 +12,7 @@ from database import (
     add_referral,
     extend_subscription,
     create_subscription,
+    calculate_new_expiry,
 )
 from xui_api import add_client_to_all_servers
 
@@ -49,10 +51,53 @@ def get_welcome_text(first_name: str) -> str:
     )
 
 
-@router.message(CommandStart())
-async def cmd_start(message: types.Message):
+async def give_referral_bonus(referrer_id: int, referrer_user: dict):
+    """Начисляет реферальный бонус — продлевает или создаёт подписку + обновляет панель"""
     from bot import bot
 
+    sub = get_active_subscription(referrer_user["id"])
+
+    if sub:
+        # Есть подписка — продлеваем в базе
+        new_expires = extend_subscription(referrer_user["id"], REFERRAL_BONUS_DAYS)
+        expiry_ms = int(new_expires.timestamp() * 1000)
+    else:
+        # Нет подписки — создаём новую
+        create_subscription(referrer_user["id"], "referral", REFERRAL_BONUS_DAYS, 0)
+        new_sub = get_active_subscription(referrer_user["id"])
+        new_expires = datetime.fromisoformat(new_sub["expires_at"])
+        expiry_ms = int(new_expires.timestamp() * 1000)
+
+    # Обновляем expiryTime на всех серверах
+    email = f"tg_{referrer_id}"
+    await add_client_to_all_servers(
+        vpn_uuid=referrer_user["vpn_uuid"],
+        email=email,
+        traffic_limit_bytes=0,
+        expiry_time=expiry_ms,
+    )
+
+    try:
+        sub_link = f"https://{DOMAIN}{SUB_PATH}/{referrer_user['vpn_uuid']}"
+        happ_redirect = f"https://{DOMAIN}/r?url={sub_link}"
+        buttons = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Добавить VPN в приложение", url=happ_redirect)],
+            [InlineKeyboardButton(text="🚪 Главное меню", callback_data="back_start")],
+        ])
+        await bot.send_message(
+            referrer_id,
+            f"🎉 Ваш друг присоединился по реферальной ссылке!\n"
+            f"Вам начислено <b>+{REFERRAL_BONUS_DAYS} дня</b> к подписке!\n\n"
+            f"🗝 Ваш ключ:\n"
+            f"<code>{sub_link}</code>",
+            reply_markup=buttons,
+        )
+    except Exception:
+        pass
+
+
+@router.message(CommandStart())
+async def cmd_start(message: types.Message):
     # Проверяем реферальную ссылку
     referrer_id = None
     args = message.text.split()
@@ -64,57 +109,20 @@ async def cmd_start(message: types.Message):
         except ValueError:
             referrer_id = None
 
-    # Проверяем — новый ли это пользователь
     existing_user = get_user_by_telegram_id(message.from_user.id)
     is_new_user = existing_user is None
 
     user = get_or_create_user(message.from_user.id, message.from_user.username, referred_by=referrer_id)
 
-    # Начисляем бонус рефереру если новый пользователь пришёл по ссылке
+    # Начисляем бонус рефереру
     if is_new_user and referrer_id:
         referrer = get_user_by_telegram_id(referrer_id)
         if referrer:
             added = add_referral(referrer_id, message.from_user.id, bonus_days=REFERRAL_BONUS_DAYS)
             if added:
                 referrer_user = get_or_create_user(referrer_id)
-                sub = get_active_subscription(referrer_user["id"])
+                await give_referral_bonus(referrer_id, referrer_user)
 
-                if sub:
-                    # Есть подписка — продлеваем
-                    extend_subscription(referrer_user["id"], REFERRAL_BONUS_DAYS)
-                else:
-                    # Нет подписки — создаём новую и добавляем ключ на серверы
-                    email = f"tg_{referrer_id}"
-                    from datetime import datetime, timedelta
-                    expiry_ms = int(
-                        (datetime.utcnow() + timedelta(days=REFERRAL_BONUS_DAYS)).timestamp() * 1000
-                    )
-                    await add_client_to_all_servers(
-                        vpn_uuid=referrer_user["vpn_uuid"],
-                        email=email,
-                        traffic_limit_bytes=0,
-                        expiry_time=expiry_ms,
-                    )
-                    create_subscription(referrer_user["id"], "referral", REFERRAL_BONUS_DAYS, 0)
-
-                try:
-                    sub_link = f"https://{DOMAIN}{SUB_PATH}/{referrer_user['vpn_uuid']}"
-                    happ_redirect = f"https://{DOMAIN}/r?url={sub_link}"
-                    buttons = InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="Добавить VPN в приложение", url=happ_redirect)],
-                        [InlineKeyboardButton(text="🚪 Главное меню", callback_data="back_start")],
-                    ])
-                    await bot.send_message(
-                        referrer_id,
-                        f"🎉 Ваш друг присоединился по реферальной ссылке!\n"
-                        f"Вам начислено <b>+{REFERRAL_BONUS_DAYS} дня</b> к подписке!\n\n"
-                        f"🗝 Ваш ключ:\n"
-                        f"<code>{sub_link}</code>",
-                        reply_markup=buttons,
-                    )
-                except Exception:
-                    pass
-                
     first_name = message.from_user.first_name or "друг"
     text = get_welcome_text(first_name)
     sub = get_active_subscription(user["id"])
