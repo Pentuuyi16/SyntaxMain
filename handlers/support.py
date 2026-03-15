@@ -60,25 +60,52 @@ async def faq_handler(callback: CallbackQuery):
     buttons = [[InlineKeyboardButton(text="🚪 Назад", callback_data="support")]]
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
     if has_media(callback.message):
-        await callback.message.delete()
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
         await callback.message.answer(text, reply_markup=kb)
     else:
-        await callback.message.edit_text(text, reply_markup=kb)
+        try:
+            await callback.message.edit_text(text, reply_markup=kb)
+        except Exception:
+            await callback.message.answer(text, reply_markup=kb)
 
 
 @router.callback_query(F.data == "how_to_connect")
 async def how_to_connect_handler(callback: CallbackQuery):
     await callback.answer()
 
-    text = "🔌 <b>Как подключить VPN?</b>\n\n🚧 Раздел в разработке."
+    text = (
+        "📃 <b>Инструкция по подключению</b>\n\n"
+        "⚖️ <b>Шаг 1. Установите приложение</b>\n"
+        "Скачайте VPN-клиент:\n"
+        "• <a href='https://play.google.com/store/search?q=Happ&c=apps&hl=ru'>Happ — Android</a>\n"
+        "• <a href='https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973'>Happ — iOS</a>\n"
+        "• <a href='https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe'>Happ — Windows</a>\n\n"
+        "🔑 <b>Шаг 2. Импортируйте ключ</b>\n"
+        "Откройте раздел «Мой ключ» и нажмите кнопку "
+        "«Добавить VPN в приложение» (только если вы установили Happ), "
+        "можно и вручную скопировать ключ и вставить\n\n"
+        "🎉 <b>Шаг 3. Подключение</b>\n"
+        "Готово! Пользуйтесь быстрым и безопасным интернетом 🚀\n\n"
+        "🧾 В случае проблем с подключением помощь можно будет "
+        "найти в разделе «🎧 Поддержка»"
+    )
 
     buttons = [[InlineKeyboardButton(text="🚪 Назад", callback_data="support")]]
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
     if has_media(callback.message):
-        await callback.message.delete()
-        await callback.message.answer(text, reply_markup=kb)
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await callback.message.answer(text, reply_markup=kb, disable_web_page_preview=True)
     else:
-        await callback.message.edit_text(text, reply_markup=kb)
+        try:
+            await callback.message.edit_text(text, reply_markup=kb, disable_web_page_preview=True)
+        except Exception:
+            await callback.message.answer(text, reply_markup=kb, disable_web_page_preview=True)
 
 
 @router.callback_query(F.data == "chat_support")
@@ -90,7 +117,13 @@ async def chat_support_handler(callback: CallbackQuery):
     buttons = [[InlineKeyboardButton(text="🚪 Назад", callback_data="support")]]
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
     if has_media(callback.message):
-        await callback.message.delete()
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
         await callback.message.answer(text, reply_markup=kb)
     else:
-        await callback.message.edit_text(text, reply_markup=kb)
+        try:
+            await callback.message.edit_text(text, reply_markup=kb)
+        except Exception:
+            await callback.message.answer(text, reply_markup=kb)
