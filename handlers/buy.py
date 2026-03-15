@@ -276,3 +276,30 @@ async def check_payment_handler(callback: CallbackQuery):
         await callback.answer("❌ Платёж отменён.", show_alert=True)
     else:
         await callback.answer("⏳ Обрабатывается... Попробуй через минуту.", show_alert=True)
+
+
+@router.callback_query(F.data == "download_app")
+async def download_app_handler(callback: CallbackQuery):
+    await callback.answer()
+
+    text = "📱 <b>Выберите тип вашего устройства</b>"
+
+    buttons = [
+        [InlineKeyboardButton(text="🍎 iOS", url="https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973")],
+        [InlineKeyboardButton(text="🤖 Android", url="https://play.google.com/store/search?q=Happ&c=apps&hl=ru")],
+        [InlineKeyboardButton(text="💻 Windows", url="https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe")],
+        [InlineKeyboardButton(text="🚪 Главное меню", callback_data="back_start")],
+    ]
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    if has_media(callback.message):
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await callback.message.answer(text, reply_markup=kb)
+    else:
+        try:
+            await callback.message.edit_text(text, reply_markup=kb)
+        except Exception:
+            await callback.message.answer(text, reply_markup=kb)
