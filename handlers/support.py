@@ -15,14 +15,14 @@ async def support_handler(callback: CallbackQuery):
     await callback.answer()
 
     text = (
-        "🎧 <b>Поддержка</b>\n\n"
-        "Выберите раздел, и мы поможем разобраться!"
+        
+        "🎧 <b>Выберите раздел, и мы поможем разобраться!</b>"
     )
 
     buttons = [
         [InlineKeyboardButton(text="🔌 Как подключить VPN?", callback_data="how_to_connect")],
         [InlineKeyboardButton(text="⁉️ Часто задаваемые вопросы", callback_data="faq")],
-        [InlineKeyboardButton(text="🎧 Чат с поддержкой", callback_data="chat_support")],
+        [InlineKeyboardButton(text="🎧 Чат с поддержкой", url="https://t.me/SyntaxSupport")],
         [InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")],
     ]
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -112,9 +112,10 @@ async def how_to_connect_handler(callback: CallbackQuery):
 async def chat_support_handler(callback: CallbackQuery):
     await callback.answer()
 
-    text = "🎧 <b>Чат с поддержкой</b>\n\n🚧 Раздел в разработке."
-
-    buttons = [[InlineKeyboardButton(text="🚪 Назад", callback_data="support")]]
+    buttons = [
+        [InlineKeyboardButton(text="🎧 Написать в поддержку", url="https://t.me/SyntaxSupport")],
+        [InlineKeyboardButton(text="🚪 Назад", callback_data="support")],
+    ]
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
     if has_media(callback.message):
         try:
