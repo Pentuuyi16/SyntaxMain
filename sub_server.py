@@ -203,8 +203,8 @@ async def yookassa_webhook(request: Request):
         )
         buttons = {
             "inline_keyboard": [
-                [{"text": "Добавить VPN в приложение", "url": happ_redirect}],
-                [{"text": "Скачать приложение", "callback_data": "download_app"}],
+                [{"text": "📥 Добавить VPN в приложение", "url": happ_redirect}],
+                [{"text": "📲 Скачать приложение", "callback_data": "download_app"}],
                 [{"text": "🚪 Главное меню", "callback_data": "back_start"}],
             ]
         }

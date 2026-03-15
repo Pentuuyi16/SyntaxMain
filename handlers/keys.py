@@ -9,6 +9,8 @@ from xui_api import get_total_traffic
 
 router = Router()
 
+MYKEY_VIDEO = "BAACAgIAAxkBAAID2Wm2pLS46GHCGgnilxqURJhVvMNZAALlpwACpBq4SeajMUdtylrPOgQ"
+
 
 def format_gb(b: int) -> str:
     return f"{b / 1024**3:.1f}"
@@ -23,7 +25,6 @@ def has_media(message) -> bool:
 
 
 def days_word(n: int) -> str:
-    """Правильное склонение: 1 день, 2 дня, 5 дней"""
     if 11 <= n % 100 <= 19:
         return "дней"
     last = n % 10
@@ -47,17 +48,11 @@ async def mykey_handler(callback: CallbackQuery):
             [InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")],
         ]
         kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-        if has_media(callback.message):
-            try:
-                await callback.message.delete()
-            except Exception:
-                pass
-            await callback.message.answer(text, reply_markup=kb)
-        else:
-            try:
-                await callback.message.edit_text(text, reply_markup=kb)
-            except Exception:
-                await callback.message.answer(text, reply_markup=kb)
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await callback.message.answer_video(video=MYKEY_VIDEO, caption=text, reply_markup=kb)
         return
 
     email = f"tg_{callback.from_user.id}"
@@ -85,14 +80,8 @@ async def mykey_handler(callback: CallbackQuery):
         [InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")],
     ]
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-    if has_media(callback.message):
-        try:
-            await callback.message.delete()
-        except Exception:
-            pass
-        await callback.message.answer(text, reply_markup=kb)
-    else:
-        try:
-            await callback.message.edit_text(text, reply_markup=kb)
-        except Exception:
-            await callback.message.answer(text, reply_markup=kb)
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.message.answer_video(video=MYKEY_VIDEO, caption=text, reply_markup=kb)

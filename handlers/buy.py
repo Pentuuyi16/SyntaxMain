@@ -20,6 +20,8 @@ from payments import create_payment as yk_create_payment, check_payment as yk_ch
 
 router = Router()
 
+BUY_VIDEO = "BAACAgIAAxkBAAID22m2pbPXv6wrFqHr0LQEZ5zDs7I5AALvpwACpBq4STjJPfOdA28OOgQ"
+
 
 def get_sub_link(vpn_uuid: str) -> str:
     return f"https://{DOMAIN}{SUB_PATH}/{vpn_uuid}"
@@ -83,17 +85,11 @@ async def trial_handler(callback: CallbackQuery):
     ]
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
-    if has_media(callback.message):
-        try:
-            await callback.message.delete()
-        except Exception:
-            pass
-        await callback.message.answer(text, reply_markup=kb)
-    else:
-        try:
-            await callback.message.edit_text(text, reply_markup=kb)
-        except Exception:
-            await callback.message.answer(text, reply_markup=kb)
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.message.answer(text, reply_markup=kb)
 
 
 @router.callback_query(F.data == "buy")
@@ -119,17 +115,11 @@ async def buy_handler(callback: CallbackQuery):
     buttons.append([InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")])
 
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-    if has_media(callback.message):
-        try:
-            await callback.message.delete()
-        except Exception:
-            pass
-        await callback.message.answer(text, reply_markup=kb)
-    else:
-        try:
-            await callback.message.edit_text(text, reply_markup=kb)
-        except Exception:
-            await callback.message.answer(text, reply_markup=kb)
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.message.answer_video(video=BUY_VIDEO, caption=text, reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith("pay_"))
@@ -204,7 +194,6 @@ async def check_payment_handler(callback: CallbackQuery):
         user = get_or_create_user(callback.from_user.id, callback.from_user.username)
         email = f"tg_{callback.from_user.id}"
 
-        # Считаем expiry с учётом текущей подписки
         new_expires = calculate_new_expiry(user["id"], plan["duration_days"])
         expiry_ms = int(new_expires.timestamp() * 1000)
         traffic_bytes = plan["traffic_gb"] * 1024 * 1024 * 1024 if plan["traffic_gb"] > 0 else 0
