@@ -28,7 +28,6 @@ def get_sub_link(vpn_uuid: str) -> str:
 
 
 PLAN_LABELS = {
-    "test": "1₽ - 1 день",
     "1month": "99₽ - 1 мес",
     "3month": "289₽ - 3 мес (🔥4%)",
     "6month": "549₽ - 6 мес (🔥8%)",
