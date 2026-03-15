@@ -55,7 +55,7 @@ PLANS = {
 # ========================
 TRIAL_ENABLED = True
 TRIAL_DURATION_DAYS = 3
-TRIAL_TRAFFIC_GB = 15
+TRIAL_TRAFFIC_GB = 150
 
 # ========================
 # Серверы 3X-UI
