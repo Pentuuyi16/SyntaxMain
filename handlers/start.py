@@ -130,7 +130,7 @@ async def cmd_start(message: types.Message):
     show_trial = not has_used_trial(message.from_user.id) and not sub
     kb = get_main_menu(message.from_user.id, show_trial=show_trial)
     await message.answer_video(video=WELCOME_VIDEO, caption=text, reply_markup=kb)
-    
+
 @router.callback_query(F.data == "how_to_connect_main")
 async def how_to_connect_main_handler(callback: CallbackQuery):
     await callback.answer()
@@ -152,7 +152,7 @@ async def how_to_connect_main_handler(callback: CallbackQuery):
         "найти в разделе «🎧 Поддержка»"
     )
 
-    buttons = [[InlineKeyboardButton(text="🚪 Главное меню", callback_data="back_start")]]
+    buttons = [[InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")]]
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
     try:
         await callback.message.delete()
