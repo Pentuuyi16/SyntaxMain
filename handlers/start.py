@@ -32,7 +32,7 @@ def get_main_menu(user_id: int, show_trial: bool = False) -> InlineKeyboardMarku
         InlineKeyboardButton(text="🔑 Мои ключи", callback_data="mykey"),
         InlineKeyboardButton(text="🎧 Поддержка", callback_data="support"),
     ])
-    buttons.append([InlineKeyboardButton(text="🔌 Как подключить VPN?", callback_data="how_to_connect")])
+    buttons.append([InlineKeyboardButton(text="🔌 Как подключить VPN?", callback_data="how_to_connect_main")])
     buttons.append([InlineKeyboardButton(text="👾 Реферальная система", callback_data="referral")])
 
     if user_id in ADMIN_TELEGRAM_IDS:
@@ -130,7 +130,35 @@ async def cmd_start(message: types.Message):
     show_trial = not has_used_trial(message.from_user.id) and not sub
     kb = get_main_menu(message.from_user.id, show_trial=show_trial)
     await message.answer_video(video=WELCOME_VIDEO, caption=text, reply_markup=kb)
+    
+@router.callback_query(F.data == "how_to_connect_main")
+async def how_to_connect_main_handler(callback: CallbackQuery):
+    await callback.answer()
 
+    text = (
+        "📃 <b>Инструкция по подключению</b>\n\n"
+        "⚖️ <b>Шаг 1. Установите приложение</b>\n"
+        "Скачайте VPN-клиент:\n"
+        "• <a href='https://play.google.com/store/search?q=Happ&c=apps&hl=ru'>Happ — Android</a>\n"
+        "• <a href='https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973'>Happ — iOS</a>\n"
+        "• <a href='https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe'>Happ — Windows</a>\n\n"
+        "🔑 <b>Шаг 2. Импортируйте ключ</b>\n"
+        "Откройте раздел «Мой ключ» и нажмите кнопку "
+        "«Добавить VPN в приложение» (только если вы установили Happ), "
+        "можно и вручную скопировать ключ и вставить\n\n"
+        "🎉 <b>Шаг 3. Подключение</b>\n"
+        "Готово! Пользуйтесь быстрым и безопасным интернетом 🚀\n\n"
+        "🧾 В случае проблем с подключением помощь можно будет "
+        "найти в разделе «🎧 Поддержка»"
+    )
+
+    buttons = [[InlineKeyboardButton(text="🚪 Главное меню", callback_data="back_start")]]
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.message.answer(text, reply_markup=kb, disable_web_page_preview=True)
 
 @router.callback_query(F.data == "back_start")
 async def back_start_handler(callback: CallbackQuery):
