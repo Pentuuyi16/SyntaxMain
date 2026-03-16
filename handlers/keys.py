@@ -74,10 +74,12 @@ async def mykey_handler(callback: CallbackQuery):
         f"Обратись в поддержку на главной,\n"
         f"👌 мы обязательно поможем"
     )
-
+    happ_redirect = f"https://{DOMAIN}/r?url={sub_link}"
     buttons = [
+        [InlineKeyboardButton(text="📥 Добавить VPN в приложение", url=happ_redirect)],
+        [InlineKeyboardButton(text="📲 Установить приложение", callback_data="download_app")],
         [InlineKeyboardButton(text="🛒 Продлить действие VPN-ключа", callback_data="buy")],
-        [InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")],
+        [InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")]
     ]
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
     try:
