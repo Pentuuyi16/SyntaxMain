@@ -29,9 +29,10 @@ def get_main_menu(user_id: int, show_trial: bool = False) -> InlineKeyboardMarku
 
     buttons.append([InlineKeyboardButton(text="🤍 Купить подписку", callback_data="buy")])
     buttons.append([
-        InlineKeyboardButton(text="🔑 Мой ключ", callback_data="mykey"),
+        InlineKeyboardButton(text="🔑 Мои ключи", callback_data="mykey"),
         InlineKeyboardButton(text="🎧 Поддержка", callback_data="support"),
     ])
+    buttons.append([InlineKeyboardButton(text="🔌 Как подключить VPN?", callback_data="how_to_connect")])
     buttons.append([InlineKeyboardButton(text="👾 Реферальная система", callback_data="referral")])
 
     if user_id in ADMIN_TELEGRAM_IDS:
