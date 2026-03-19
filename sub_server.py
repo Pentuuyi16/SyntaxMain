@@ -61,6 +61,9 @@ def generate_trojan_link(server: dict, password: str) -> str:
         params["sni"] = ""
         if server.get("alpn"):
             params["alpn"] = server["alpn"]
+        if server["network"] == "ws":
+            params["path"] = server.get("path", "/")
+            params["host"] = ""
 
     query = urllib.parse.urlencode(params)
     name = urllib.parse.quote(server["name"])

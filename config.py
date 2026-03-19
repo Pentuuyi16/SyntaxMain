@@ -128,7 +128,23 @@ SERVERS = [
         "fingerprint": "chrome",
         "public_key": "hsEsCyGBf-VlPx59IahEln0DVud1IpgR2-443nWrSAQ",
         "short_id": "c1a80ebffc4f063a",
-    }
+    },
+    {
+        "name": "🇫🇮 ПК-WIFI",
+        "tag": "pcwifi",
+        "panel_url": "https://vpn2.syntax-vpn.tech:7080/CEA23FKEvXftAjZk6E",
+        "panel_user": "cxaW4VnoGe",
+        "panel_pass": "lPGpavSb3p",
+        "inbound_id": 3,
+        "server_ip": "vpn2.syntax-vpn.tech",
+        "server_port": 5443,
+        "protocol": "trojan",
+        "network": "ws",
+        "security": "tls",
+        "fingerprint": "chrome",
+        "alpn": "h2,http/1.1",
+        "path": "/",
+    },
     
 ]
 
