@@ -22,12 +22,12 @@ from database import (
     init_db,
 )
 from xui_api import add_client_to_all_servers
-from admin_web import admin_router
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="SyntaxVPN Subscription")
-app.include_router(admin_router)
+
 
 @app.on_event("startup")
 async def startup():
