@@ -12,7 +12,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from config import TELEGRAM_BOT_TOKEN
-from database import init_db, get_all_active_subscriptions, deactivate_subscription
+from database import init_db, get_expired_active_subscriptions, deactivate_subscription
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -46,49 +46,50 @@ async def get_video_note_id(message: types.Message):
 
 async def check_expired_subscriptions():
     """Фоновая задача — проверяет истёкшие подписки и отправляет уведомления"""
+    await asyncio.sleep(10)  # Ждём пока бот полностью запустится
+    logger.info("check_expired_subscriptions task started")
+
     while True:
         try:
-            subs = get_all_active_subscriptions()
-            now = datetime.utcnow()
+            subs = get_expired_active_subscriptions()
+
+            if subs:
+                logger.info(f"Found {len(subs)} expired subscriptions")
 
             for sub in subs:
-                expires = datetime.fromisoformat(sub["expires_at"])
+                deactivate_subscription(sub["id"])
 
-                if expires < now:
-                    # Подписка истекла
-                    deactivate_subscription(sub["id"])
+                if sub["plan_id"] in ("trial", "referral"):
+                    text = (
+                        "<b>Пробный период закончился, но это не повод прощаться 😉</b>\n\n"
+                        "Продлите подписку и продолжайте пользоваться "
+                        "всеми преимуществами без ограничений!"
+                    )
+                else:
+                    text = (
+                        "<b>Подписка закончилась, но это не повод прощаться 😉</b>\n\n"
+                        "Продлите её и продолжайте пользоваться "
+                        "всеми преимуществами без ограничений!"
+                    )
 
-                    if sub["plan_id"] == "trial" or sub["plan_id"] == "referral":
-                        text = (
-                            "<b>Пробный период закончился, но это не повод прощаться 😉</b>\n\n"
-                            "Продлите подписку и продолжайте пользоваться "
-                            "всеми преимуществами без ограничений!"
-                        )
-                    else:
-                        text = (
-                            "<b>Подписка закончилась, но это не повод прощаться 😉</b>\n\n"
-                            "Продлите её и продолжайте пользоваться "
-                            "всеми преимуществами без ограничений!"
-                        )
+                buttons = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🤍 Купить подписку", callback_data="buy")],
+                ])
 
-                    buttons = InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="🤍 Купить подписку", callback_data="buy")],
-                    ])
-
-                    try:
-                        await bot.send_message(
-                            sub["telegram_id"],
-                            text,
-                            reply_markup=buttons,
-                        )
-                        logger.info(f"Expired notification sent to {sub['telegram_id']}")
-                    except Exception as e:
-                        logger.error(f"Failed to send expired notification to {sub['telegram_id']}: {e}")
+                try:
+                    await bot.send_message(
+                        sub["telegram_id"],
+                        text,
+                        reply_markup=buttons,
+                    )
+                    logger.info(f"Expired notification sent to {sub['telegram_id']}")
+                except Exception as e:
+                    logger.error(f"Failed to send expired notification to {sub['telegram_id']}: {e}")
 
         except Exception as e:
             logger.error(f"check_expired_subscriptions error: {e}")
 
-        await asyncio.sleep(300)  # Проверяем каждые 5 минут
+        await asyncio.sleep(300)
 
 
 async def main():
@@ -98,7 +99,6 @@ async def main():
         dp.include_router(r)
     dp.include_router(temp_router)
 
-    # Запускаем фоновую задачу
     asyncio.create_task(check_expired_subscriptions())
 
     logger.info("Bot started!")

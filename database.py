@@ -311,3 +311,14 @@ def get_referral_bonus_days(telegram_id: int) -> int:
             (telegram_id,),
         ).fetchone()
         return row["total"]
+def get_expired_active_subscriptions() -> list[dict]:
+    """Подписки которые истекли но ещё не деактивированы"""
+    now = datetime.utcnow().isoformat()
+    with get_db() as db:
+        rows = db.execute(
+            """SELECT s.*, u.telegram_id, u.vpn_uuid
+               FROM subscriptions s JOIN users u ON s.user_id = u.id
+               WHERE s.is_active = 1 AND s.expires_at <= ?""",
+            (now,),
+        ).fetchall()
+        return [dict(r) for r in rows]
