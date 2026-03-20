@@ -108,7 +108,7 @@ async def subscription_endpoint(vpn_uuid: str):
         "Content-Disposition": "inline",
         "Profile-Title": "Syntax VPN",
         "Subscription-Userinfo": f"upload={traffic['up']}; download={traffic['down']}; total=0; expire={int(expires.timestamp())}",
-        "Profile-Update-Interval": "1",
+        "Profile-Update-Interval": "2",
     }
 
     return Response(content=content, headers=headers, media_type="text/plain")
