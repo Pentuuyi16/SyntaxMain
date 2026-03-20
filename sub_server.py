@@ -106,7 +106,7 @@ async def subscription_endpoint(vpn_uuid: str):
     headers = {
         "Content-Type": "text/plain; charset=utf-8",
         "Content-Disposition": "inline",
-        "Profile-Title": "🚀 Syntax VPN",
+        "Profile-Title": "Syntax VPN",
         "Subscription-Userinfo": f"upload={traffic['up']}; download={traffic['down']}; total=0; expire={int(expires.timestamp())}",
         "Profile-Update-Interval": "2",
         "Support-URL": "https://t.me/syntxvpn_bot",
