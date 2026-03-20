@@ -99,11 +99,16 @@ async def subscription_endpoint(vpn_uuid: str):
 
     content = generate_subscription(vpn_uuid)
 
+    # Получаем реальный трафик
+    from xui_api import get_total_traffic
+    email = f"tg_{user['telegram_id']}"
+    traffic = await get_total_traffic(email)
+
     headers = {
         "Content-Type": "text/plain; charset=utf-8",
         "Content-Disposition": "inline",
         "Profile-Title": base64.b64encode("SyntaxVPN".encode()).decode(),
-        "Subscription-Userinfo": f"upload=0; download=0; total=0; expire={int(expires.timestamp())}",
+        "Subscription-Userinfo": f"upload={traffic['up']}; download={traffic['down']}; total=0; expire={int(expires.timestamp())}",
         "Profile-Update-Interval": "12",
     }
 
