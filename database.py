@@ -63,6 +63,14 @@ def init_db():
                 bonus_days_given INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                telegram_id INTEGER NOT NULL,
+                notification_type TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(telegram_id, notification_type)
+            );
         """)
 
         try:
@@ -127,7 +135,6 @@ def get_user_by_telegram_id(telegram_id: int) -> dict | None:
 # ==================
 
 def calculate_new_expiry(user_id: int, duration_days: int) -> datetime:
-    """Считает новую дату окончания: если есть активная подписка — прибавляет к ней, иначе от сейчас"""
     now = datetime.utcnow()
     sub = get_active_subscription(user_id)
     if sub:
@@ -138,12 +145,10 @@ def calculate_new_expiry(user_id: int, duration_days: int) -> datetime:
 
 
 def create_subscription(user_id: int, plan_id: str, duration_days: int, traffic_gb: int = 0) -> dict:
-    """Создаёт или продлевает подписку"""
     now = datetime.utcnow()
     expires = calculate_new_expiry(user_id, duration_days)
     traffic_bytes = traffic_gb * 1024 * 1024 * 1024 if traffic_gb > 0 else 0
 
-    # Деактивируем старые подписки
     with get_db() as db:
         db.execute(
             "UPDATE subscriptions SET is_active = 0 WHERE user_id = ? AND is_active = 1",
@@ -174,7 +179,6 @@ def get_active_subscription(user_id: int) -> dict | None:
 
 
 def extend_subscription(user_id: int, extra_days: int) -> datetime:
-    """Продлевает активную подписку на extra_days дней. Возвращает новую дату окончания."""
     sub = get_active_subscription(user_id)
     if sub:
         expires = datetime.fromisoformat(sub["expires_at"])
@@ -195,6 +199,18 @@ def get_all_active_subscriptions() -> list[dict]:
             """SELECT s.*, u.telegram_id, u.vpn_uuid
                FROM subscriptions s JOIN users u ON s.user_id = u.id
                WHERE s.is_active = 1 AND s.expires_at > ?""",
+            (now,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_expired_active_subscriptions() -> list[dict]:
+    now = datetime.utcnow().isoformat()
+    with get_db() as db:
+        rows = db.execute(
+            """SELECT s.*, u.telegram_id, u.vpn_uuid
+               FROM subscriptions s JOIN users u ON s.user_id = u.id
+               WHERE s.is_active = 1 AND s.expires_at <= ?""",
             (now,),
         ).fetchall()
         return [dict(r) for r in rows]
@@ -311,14 +327,29 @@ def get_referral_bonus_days(telegram_id: int) -> int:
             (telegram_id,),
         ).fetchone()
         return row["total"]
-def get_expired_active_subscriptions() -> list[dict]:
-    """Подписки которые истекли но ещё не деактивированы"""
-    now = datetime.utcnow().isoformat()
+
+
+# ==================
+# Notifications
+# ==================
+
+def has_notification(telegram_id: int, notification_type: str) -> bool:
     with get_db() as db:
-        rows = db.execute(
-            """SELECT s.*, u.telegram_id, u.vpn_uuid
-               FROM subscriptions s JOIN users u ON s.user_id = u.id
-               WHERE s.is_active = 1 AND s.expires_at <= ?""",
-            (now,),
-        ).fetchall()
-        return [dict(r) for r in rows]
+        row = db.execute(
+            "SELECT * FROM notifications WHERE telegram_id = ? AND notification_type = ?",
+            (telegram_id, notification_type),
+        ).fetchone()
+        return row is not None
+
+
+def add_notification(telegram_id: int, notification_type: str):
+    with get_db() as db:
+        db.execute(
+            "INSERT OR IGNORE INTO notifications (telegram_id, notification_type) VALUES (?, ?)",
+            (telegram_id, notification_type),
+        )
+
+
+def clear_notifications(telegram_id: int):
+    with get_db() as db:
+        db.execute("DELETE FROM notifications WHERE telegram_id = ?", (telegram_id,))
