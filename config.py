@@ -11,8 +11,8 @@ ADMIN_TELEGRAM_IDS = [6397535545]
 # ========================
 # ЮKassa
 # ========================
-YUKASSA_SHOP_ID = "1240278"
-YUKASSA_SECRET_KEY = "live_vd9yzrsOo56Owbu0fEqKYi-NZtfsVBRlFm3tcNha270"
+YUKASSA_SHOP_ID = "1306008"
+YUKASSA_SECRET_KEY = "live_YZXSm72pcYD2WNKc7LlrtQ1kNxM5QuyaEYIzWCjkF4o"
 
 # ========================
 # Тарифы (можно менять)
