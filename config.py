@@ -150,22 +150,6 @@ SERVERS = [
         "short_id": "3d",
         "spx": "/",
     },
-    {
-        "name": "🇫🇮 ПК-WIFI",
-        "tag": "pcwifi",
-        "panel_url": "https://vpn2.syntax-vpn.tech:7080/CEA23FKEvXftAjZk6E",
-        "panel_user": "cxaW4VnoGe",
-        "panel_pass": "lPGpavSb3p",
-        "inbound_id": 3,
-        "server_ip": "vpn2.syntax-vpn.tech",
-        "server_port": 5443,
-        "protocol": "trojan",
-        "network": "ws",
-        "security": "tls",
-        "fingerprint": "chrome",
-        "alpn": "h2,http/1.1",
-        "path": "/",
-    },
     
 ]
 
