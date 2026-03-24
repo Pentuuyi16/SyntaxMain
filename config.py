@@ -63,7 +63,7 @@ TRIAL_TRAFFIC_GB = 150
 SERVERS = [
 
     {
-        "name": "🇱🇻 Основной",
+        "name": "🇱🇻 Основной №1| Латвия |",
         "tag": "reserve",
         "panel_url": "https://vpn2.syntax-vpn.tech:7080/CEA23FKEvXftAjZk6E",
         "panel_user": "cxaW4VnoGe",
@@ -76,6 +76,26 @@ SERVERS = [
         "security": "tls",
         "fingerprint": "chrome",
         "alpn": "h2,http/1.1",
+    },
+    {
+        "name": "🇵🇱 Основной №2| Польша |",
+        "tag": "poland",
+        "panel_url": "https://vpn3.syntax-vpn.tech:35566/5uRCQCgVwLdWptXLtY",
+        "panel_user": "oEQzht5VLy",
+        "panel_pass": "ls2b7k5qHGLRho7OH9",
+        "inbound_id": 1,
+        "server_ip": "vpn3.syntax-vpn.tech",
+        "server_port": 4443,
+        "protocol": "trojan",
+        "network": "xhttp",
+        "security": "reality",
+        "sni": "cdnv-img.perekrestok.ru",
+        "fingerprint": "firefox",
+        "public_key": "eq77SAufWKaaANuwJ_hsLIhcGoOzvNBo1clMPqyOr1g",
+        "short_id": "42a",
+        "spx": "/",
+        "path": "/check-ping",
+        "host": "cdnv-img.perekrestok.ru",
     },
     {
         "name": "🛡 Резерв",
