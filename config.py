@@ -90,7 +90,7 @@ SERVERS = [
         "network": "xhttp",
         "security": "reality",
         "sni": "cdnv-img.perekrestok.ru",
-        "fingerprint": "qq",
+        "fingerprint": "firefox",
         "public_key": "eq77SAufWKaaANuwJ_hsLlhcGoOzvNBo1clMPqyOr1g",
         "short_id": "4cb285fb754cec8f",
         "spx": "/",
