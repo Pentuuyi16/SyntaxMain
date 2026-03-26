@@ -37,8 +37,7 @@ class XUIClient:
         Авторизация в панели с retry.
         Пробует LOGIN_RETRIES раз с паузой LOGIN_RETRY_DELAY секунд.
         """
-        if self._logged_in:
-            return True
+        self._logged_in = False  # сброс перед попыткой
 
         for attempt in range(1, LOGIN_RETRIES + 1):
             try:
@@ -75,10 +74,26 @@ class XUIClient:
 
     async def _ensure_logged_in(self) -> bool:
         """Гарантирует авторизацию перед запросом."""
-        if self._logged_in:
-            return True
-        self._logged_in = False
-        return await self.login()
+        if not self._logged_in:
+            return await self.login()
+        return True
+
+    async def _request(self, method: str, url: str, **kwargs) -> httpx.Response:
+        """
+        Обёртка над httpx: при получении 401/403 сбрасывает флаг сессии,
+        перелогинивается и повторяет запрос один раз.
+        Это защищает от протухших сессий 3x-ui.
+        """
+        resp = await self._client.request(method, url, **kwargs)
+        if resp.status_code in (401, 403):
+            logger.warning(
+                f"Session expired on {self.server['name']} "
+                f"(HTTP {resp.status_code}), re-logging in..."
+            )
+            self._logged_in = False
+            if await self.login():
+                resp = await self._client.request(method, url, **kwargs)
+        return resp
 
     def _unique_email(self, email: str) -> str:
         return f"{email}_{self.server['tag']}"
@@ -97,7 +112,8 @@ class XUIClient:
         unique_email = self._unique_email(email)
 
         try:
-            resp = await self._client.get(
+            resp = await self._request(
+                "GET",
                 f"{self.base_url}/panel/api/inbounds/get/{self.inbound_id}",
             )
             inbound = resp.json().get("obj", {})
@@ -134,7 +150,8 @@ class XUIClient:
                 }),
             }
 
-            resp = await self._client.post(
+            resp = await self._request(
+                "POST",
                 f"{self.base_url}/panel/api/inbounds/updateClient/{existing_uuid}",
                 data=client_data,
             )
@@ -198,7 +215,8 @@ class XUIClient:
         )
 
         try:
-            resp = await self._client.post(
+            resp = await self._request(
+                "POST",
                 f"{self.base_url}/panel/api/inbounds/addClient",
                 data=client_data,
             )
@@ -241,7 +259,8 @@ class XUIClient:
         unique_email = self._unique_email(email)
 
         try:
-            resp = await self._client.get(
+            resp = await self._request(
+                "GET",
                 f"{self.base_url}/panel/api/inbounds/get/{self.inbound_id}",
             )
             inbound = resp.json().get("obj", {})
@@ -260,7 +279,8 @@ class XUIClient:
                 )
                 return True
 
-            resp = await self._client.post(
+            resp = await self._request(
+                "POST",
                 f"{self.base_url}/panel/api/inbounds/{self.inbound_id}/delClient/{target['password']}",
             )
             result = resp.json()
@@ -281,7 +301,8 @@ class XUIClient:
         unique_email = self._unique_email(email)
 
         try:
-            resp = await self._client.get(
+            resp = await self._request(
+                "GET",
                 f"{self.base_url}/panel/api/inbounds/getClientTraffics/{unique_email}",
             )
             result = resp.json()
@@ -292,6 +313,9 @@ class XUIClient:
                     "down": obj.get("down", 0),
                     "total": obj.get("up", 0) + obj.get("down", 0),
                 }
+            logger.error(
+                f"Get traffic error on {self.server['name']}: {result}"
+            )
             return None
         except Exception as e:
             logger.error(f"Get traffic ERROR on {self.server['name']}: {e}")
