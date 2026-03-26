@@ -129,7 +129,12 @@ async def subscription_endpoint(vpn_uuid: str):
     content = generate_subscription(vpn_uuid)
 
     email = f"tg_{user['telegram_id']}"
-    traffic = await get_total_traffic(email)
+
+    try:
+        traffic = await get_total_traffic(email)   # использует кэш из xui_api
+    except Exception as e:
+        logger.error(f"Traffic fetch failed for {email}: {e}")
+        traffic = {"up": 0, "down": 0}
 
     headers = {
         "Content-Type": "text/plain; charset=utf-8",
@@ -139,7 +144,7 @@ async def subscription_endpoint(vpn_uuid: str):
             f"upload={traffic['up']}; download={traffic['down']}; "
             f"total=0; expire={int(expires.timestamp())}"
         ),
-        "Profile-Update-Interval": "2",
+        "Profile-Update-Interval": "60",        # ← изменил с 2 на 60
         "Support-URL": "https://t.me/syntxvpn_bot",
     }
 
