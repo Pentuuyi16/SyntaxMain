@@ -11,33 +11,32 @@ from config import SERVERS
 
 logger = logging.getLogger(__name__)
 
-LOGIN_RETRIES = 3       # сколько раз пробовать логин
-LOGIN_RETRY_DELAY = 3   # секунд между попытками
+LOGIN_RETRIES = 2
+LOGIN_RETRY_DELAY = 1
+
+# Глобальный пул клиентов — один на каждый inbound
+_xui_clients: dict[str, "XUIClient"] = {}
+
+
+def get_xui_client(server: dict) -> "XUIClient":
+    key = f"{server['panel_url']}_{server['inbound_id']}"
+    if key not in _xui_clients:
+        _xui_clients[key] = XUIClient(server)
+    return _xui_clients[key]
 
 
 class XUIClient:
-    """Работа с одним сервером 3X-UI"""
-
     def __init__(self, server: dict):
         self.server = server
         self.base_url = server["panel_url"]
         self.username = server["panel_user"]
         self.password = server["panel_pass"]
         self.inbound_id = server["inbound_id"]
-        # Один постоянный клиент — сессия и куки сохраняются между запросами
-        self._client = httpx.AsyncClient(verify=False, timeout=15)
+        self._client = httpx.AsyncClient(verify=False, timeout=8)
         self._logged_in = False
 
-    async def close(self):
-        """Закрыть HTTP-клиент после использования"""
-        await self._client.aclose()
-
     async def login(self) -> bool:
-        """
-        Авторизация в панели с retry.
-        Пробует LOGIN_RETRIES раз с паузой LOGIN_RETRY_DELAY секунд.
-        """
-        self._logged_in = False  # сброс перед попыткой
+        self._logged_in = False
 
         for attempt in range(1, LOGIN_RETRIES + 1):
             try:
@@ -53,7 +52,6 @@ class XUIClient:
                     )
                     return True
 
-                # Сервер ответил, но success=False — пароль неверный, retry не поможет
                 logger.error(
                     f"Login FAILED: {self.server['name']} "
                     f"status={resp.status_code} body={resp.text} — не повторяем"
@@ -73,17 +71,11 @@ class XUIClient:
         return False
 
     async def _ensure_logged_in(self) -> bool:
-        """Гарантирует авторизацию перед запросом."""
         if not self._logged_in:
             return await self.login()
         return True
 
     async def _request(self, method: str, url: str, **kwargs) -> httpx.Response:
-        """
-        Обёртка над httpx: при получении 401/403 сбрасывает флаг сессии,
-        перелогинивается и повторяет запрос один раз.
-        Это защищает от протухших сессий 3x-ui.
-        """
         resp = await self._client.request(method, url, **kwargs)
         if resp.status_code in (401, 403):
             logger.warning(
@@ -105,7 +97,6 @@ class XUIClient:
         traffic_limit_bytes: int = 0,
         expiry_time: int = 0,
     ) -> bool:
-        """Обновляет существующего клиента — находит его UUID в панели и обновляет данные."""
         if not await self._ensure_logged_in():
             return False
 
@@ -330,14 +321,12 @@ async def add_client_to_all_servers(
 ) -> bool:
     results = []
     for server_config in SERVERS:
-        xui = XUIClient(server_config)
+        xui = get_xui_client(server_config)
         try:
             ok = await xui.add_client(vpn_uuid, email, traffic_limit_bytes, expiry_time)
         except Exception as e:
             logger.error(f"Unhandled error on {server_config['name']}: {e}")
             ok = False
-        finally:
-            await xui.close()
 
         results.append((server_config["name"], ok))
         logger.info(
@@ -357,14 +346,12 @@ async def add_client_to_all_servers(
 async def remove_client_from_all_servers(email: str) -> bool:
     results = []
     for server_config in SERVERS:
-        xui = XUIClient(server_config)
+        xui = get_xui_client(server_config)
         try:
             ok = await xui.remove_client(email)
         except Exception as e:
             logger.error(f"Unhandled error on {server_config['name']}: {e}")
             ok = False
-        finally:
-            await xui.close()
         results.append(ok)
     return any(results)
 
@@ -373,7 +360,7 @@ async def get_total_traffic(email: str) -> dict:
     total_up = 0
     total_down = 0
     for server_config in SERVERS:
-        xui = XUIClient(server_config)
+        xui = get_xui_client(server_config)
         try:
             traffic = await xui.get_client_traffic(email)
             if traffic:
@@ -381,8 +368,6 @@ async def get_total_traffic(email: str) -> dict:
                 total_down += traffic["down"]
         except Exception as e:
             logger.error(f"Unhandled error on {server_config['name']}: {e}")
-        finally:
-            await xui.close()
     return {
         "up": total_up,
         "down": total_down,
