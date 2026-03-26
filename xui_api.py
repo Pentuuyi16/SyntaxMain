@@ -20,24 +20,42 @@ class XUIClient:
         self.username = server["panel_user"]
         self.password = server["panel_pass"]
         self.inbound_id = server["inbound_id"]
-        self.cookie = None
+        # Один постоянный клиент — сессия и куки сохраняются между запросами
+        self._client = httpx.AsyncClient(verify=False, timeout=15)
+        self._logged_in = False
+
+    async def close(self):
+        """Закрыть HTTP-клиент после использования"""
+        await self._client.aclose()
 
     async def login(self) -> bool:
+        """Авторизация в панели. Повторно не логинится если уже авторизован."""
+        if self._logged_in:
+            return True
         try:
-            async with httpx.AsyncClient(verify=False, timeout=15) as client:
-                resp = await client.post(
-                    f"{self.base_url}/login",
-                    data={"username": self.username, "password": self.password},
-                )
-                if resp.status_code == 200 and resp.json().get("success"):
-                    self.cookie = resp.cookies
-                    logger.info(f"Login OK: {self.server['name']} (inbound {self.inbound_id})")
-                    return True
-                logger.error(f"Login FAILED: {self.server['name']} status={resp.status_code} body={resp.text}")
-                return False
+            resp = await self._client.post(
+                f"{self.base_url}/login",
+                data={"username": self.username, "password": self.password},
+            )
+            if resp.status_code == 200 and resp.json().get("success"):
+                self._logged_in = True
+                logger.info(f"Login OK: {self.server['name']} (inbound {self.inbound_id})")
+                return True
+            logger.error(
+                f"Login FAILED: {self.server['name']} "
+                f"status={resp.status_code} body={resp.text}"
+            )
+            return False
         except Exception as e:
             logger.error(f"Login ERROR: {self.server['name']}: {e}")
             return False
+
+    async def _ensure_logged_in(self) -> bool:
+        """Гарантирует авторизацию перед запросом."""
+        if self._logged_in:
+            return True
+        self._logged_in = False
+        return await self.login()
 
     def _unique_email(self, email: str) -> str:
         return f"{email}_{self.server['tag']}"
@@ -49,69 +67,77 @@ class XUIClient:
         traffic_limit_bytes: int = 0,
         expiry_time: int = 0,
     ) -> bool:
-        """Обновляет существующего клиента — сначала находит его password в панели"""
-        if not self.cookie:
-            if not await self.login():
-                return False
+        """Обновляет существующего клиента — находит его UUID в панели и обновляет данные."""
+        if not await self._ensure_logged_in():
+            return False
 
         unique_email = self._unique_email(email)
 
         try:
-            async with httpx.AsyncClient(verify=False, timeout=15, cookies=self.cookie) as client:
-                # Получаем inbound чтобы найти password клиента
-                resp = await client.get(
-                    f"{self.base_url}/panel/api/inbounds/get/{self.inbound_id}",
+            # Получаем inbound чтобы найти текущий UUID (password) клиента
+            resp = await self._client.get(
+                f"{self.base_url}/panel/api/inbounds/get/{self.inbound_id}",
+            )
+            inbound = resp.json().get("obj", {})
+            settings = json.loads(inbound.get("settings", "{}"))
+            clients = settings.get("clients", [])
+
+            existing_uuid = None
+            for c in clients:
+                if c.get("email") == unique_email:
+                    existing_uuid = c.get("password")
+                    break
+
+            if not existing_uuid:
+                logger.error(
+                    f"Update: client {unique_email} not found on {self.server['name']}"
                 )
-                inbound = resp.json().get("obj", {})
-                settings = json.loads(inbound.get("settings", "{}"))
-                clients = settings.get("clients", [])
+                return False
 
-                existing_password = None
-                for c in clients:
-                    if c.get("email") == unique_email:
-                        existing_password = c.get("password")
-                        break
+            client_data = {
+                "id": self.inbound_id,
+                "settings": json.dumps({
+                    "clients": [
+                        {
+                            "password": vpn_uuid,
+                            "email": unique_email,
+                            "limitIp": 3,
+                            "totalGB": traffic_limit_bytes,
+                            "expiryTime": expiry_time,
+                            "enable": True,
+                            "tgId": "",
+                            "subId": "",
+                        }
+                    ]
+                }),
+            }
 
-                if not existing_password:
-                    logger.error(f"Update: client {unique_email} not found on {self.server['name']}")
-                    return False
-
-                # Обновляем клиента используя его существующий password в URL
-                client_data = {
-                    "id": self.inbound_id,
-                    "settings": json.dumps({
-                        "clients": [
-                            {
-                                "password": vpn_uuid,
-                                "email": unique_email,
-                                "limitIp": 3,
-                                "totalGB": traffic_limit_bytes,
-                                "expiryTime": expiry_time,
-                                "enable": True,
-                                "tgId": "",
-                                "subId": "",
-                            }
-                        ]
-                    }),
-                }
-
-                resp = await client.post(
-                    f"{self.base_url}/panel/api/inbounds/updateClient/{existing_password}",
-                    data=client_data,
-                )
+            resp = await self._client.post(
+                f"{self.base_url}/panel/api/inbounds/updateClient/{existing_uuid}",
+                data=client_data,
+            )
+            logger.info(
+                f"<<< updateClient RESPONSE: server={self.server['name']} "
+                f"inbound={self.inbound_id} status={resp.status_code} body={resp.text}"
+            )
+            result = resp.json()
+            if result.get("success"):
                 logger.info(
-                    f"<<< updateClient RESPONSE: server={self.server['name']} "
-                    f"inbound={self.inbound_id} status={resp.status_code} body={resp.text}"
+                    f"Client {unique_email} updated on {self.server['name']} "
+                    f"(inbound {self.inbound_id})"
                 )
-                result = resp.json()
-                if result.get("success"):
-                    logger.info(f"Client {unique_email} updated on {self.server['name']} (inbound {self.inbound_id})")
-                    return True
-                else:
-                    logger.error(f"Update client FAILED: {self.server['name']} inbound={self.inbound_id} result={result}")
-                    return False
+                return True
+            else:
+                logger.error(
+                    f"Update client FAILED: {self.server['name']} "
+                    f"inbound={self.inbound_id} result={result}"
+                )
+                return False
         except Exception as e:
-            logger.error(f"Update client ERROR: {self.server['name']} inbound={self.inbound_id}: {e}")
+            logger.error(
+                f"Update client ERROR: {self.server['name']} "
+                f"inbound={self.inbound_id}: {e}"
+            )
             return False
 
     async def add_client(
@@ -121,9 +147,8 @@ class XUIClient:
         traffic_limit_bytes: int = 0,
         expiry_time: int = 0,
     ) -> bool:
-        if not self.cookie:
-            if not await self.login():
-                return False
+        if not await self._ensure_logged_in():
+            return False
 
         unique_email = self._unique_email(email)
 
@@ -151,96 +176,103 @@ class XUIClient:
         )
 
         try:
-            async with httpx.AsyncClient(verify=False, timeout=15, cookies=self.cookie) as client:
-                resp = await client.post(
-                    f"{self.base_url}/panel/api/inbounds/addClient",
-                    data=client_data,
-                )
+            resp = await self._client.post(
+                f"{self.base_url}/panel/api/inbounds/addClient",
+                data=client_data,
+            )
+            logger.info(
+                f"<<< addClient RESPONSE: server={self.server['name']} "
+                f"inbound={self.inbound_id} status={resp.status_code} body={resp.text}"
+            )
+            result = resp.json()
+            if result.get("success"):
                 logger.info(
-                    f"<<< addClient RESPONSE: server={self.server['name']} "
-                    f"inbound={self.inbound_id} status={resp.status_code} body={resp.text}"
+                    f"Client {unique_email} added to {self.server['name']} "
+                    f"(inbound {self.inbound_id})"
                 )
-                result = resp.json()
-                if result.get("success"):
-                    logger.info(f"Client {unique_email} added to {self.server['name']} (inbound {self.inbound_id})")
-                    return True
-                else:
-                    msg = result.get("msg", "")
-                    if "Duplicate" in msg:
-                        logger.info(f"Client {unique_email} duplicate on {self.server['name']} — updating...")
-                        return await self.update_client(vpn_uuid, email, traffic_limit_bytes, expiry_time)
-                    logger.error(
-                        f"Add client FAILED: {self.server['name']} "
-                        f"inbound={self.inbound_id} result={result}"
+                return True
+            else:
+                msg = result.get("msg", "")
+                if "Duplicate" in msg:
+                    logger.info(
+                        f"Client {unique_email} duplicate on {self.server['name']} — updating..."
                     )
-                    return False
+                    return await self.update_client(
+                        vpn_uuid, email, traffic_limit_bytes, expiry_time
+                    )
+                logger.error(
+                    f"Add client FAILED: {self.server['name']} "
+                    f"inbound={self.inbound_id} result={result}"
+                )
+                return False
         except Exception as e:
-            logger.error(f"Add client ERROR: {self.server['name']} inbound={self.inbound_id}: {e}")
+            logger.error(
+                f"Add client ERROR: {self.server['name']} "
+                f"inbound={self.inbound_id}: {e}"
+            )
             return False
 
     async def remove_client(self, email: str) -> bool:
-        if not self.cookie:
-            if not await self.login():
-                return False
+        if not await self._ensure_logged_in():
+            return False
 
         unique_email = self._unique_email(email)
 
         try:
-            async with httpx.AsyncClient(verify=False, timeout=15, cookies=self.cookie) as client:
-                resp = await client.get(
-                    f"{self.base_url}/panel/api/inbounds/get/{self.inbound_id}",
+            resp = await self._client.get(
+                f"{self.base_url}/panel/api/inbounds/get/{self.inbound_id}",
+            )
+            inbound = resp.json().get("obj", {})
+            settings = json.loads(inbound.get("settings", "{}"))
+            clients = settings.get("clients", [])
+
+            target = None
+            for c in clients:
+                if c.get("email") == unique_email:
+                    target = c
+                    break
+
+            if not target:
+                logger.warning(
+                    f"Client {unique_email} not found on {self.server['name']} — считаем удалённым"
                 )
-                inbound = resp.json().get("obj", {})
-                settings = json.loads(inbound.get("settings", "{}"))
-                clients = settings.get("clients", [])
+                return True
 
-                target = None
-                for c in clients:
-                    if c.get("email") == unique_email:
-                        target = c
-                        break
-
-                if not target:
-                    logger.warning(f"Client {unique_email} not found on {self.server['name']}")
-                    return True
-
-                resp = await client.post(
-                    f"{self.base_url}/panel/api/inbounds/{self.inbound_id}/delClient/{target['password']}",
-                )
-                result = resp.json()
-                if result.get("success"):
-                    logger.info(f"Client {unique_email} removed from {self.server['name']}")
-                    return True
-                else:
-                    logger.error(f"Remove client failed on {self.server['name']}: {result}")
-                    return False
+            resp = await self._client.post(
+                f"{self.base_url}/panel/api/inbounds/{self.inbound_id}/delClient/{target['password']}",
+            )
+            result = resp.json()
+            if result.get("success"):
+                logger.info(f"Client {unique_email} removed from {self.server['name']}")
+                return True
+            else:
+                logger.error(f"Remove client FAILED on {self.server['name']}: {result}")
+                return False
         except Exception as e:
-            logger.error(f"Remove client error on {self.server['name']}: {e}")
+            logger.error(f"Remove client ERROR on {self.server['name']}: {e}")
             return False
 
     async def get_client_traffic(self, email: str) -> dict | None:
-        if not self.cookie:
-            if not await self.login():
-                return None
+        if not await self._ensure_logged_in():
+            return None
 
         unique_email = self._unique_email(email)
 
         try:
-            async with httpx.AsyncClient(verify=False, timeout=15, cookies=self.cookie) as client:
-                resp = await client.get(
-                    f"{self.base_url}/panel/api/inbounds/getClientTraffics/{unique_email}",
-                )
-                result = resp.json()
-                if result.get("success") and result.get("obj"):
-                    obj = result["obj"]
-                    return {
-                        "up": obj.get("up", 0),
-                        "down": obj.get("down", 0),
-                        "total": obj.get("up", 0) + obj.get("down", 0),
-                    }
-                return None
+            resp = await self._client.get(
+                f"{self.base_url}/panel/api/inbounds/getClientTraffics/{unique_email}",
+            )
+            result = resp.json()
+            if result.get("success") and result.get("obj"):
+                obj = result["obj"]
+                return {
+                    "up": obj.get("up", 0),
+                    "down": obj.get("down", 0),
+                    "total": obj.get("up", 0) + obj.get("down", 0),
+                }
+            return None
         except Exception as e:
-            logger.error(f"Get traffic error on {self.server['name']}: {e}")
+            logger.error(f"Get traffic ERROR on {self.server['name']}: {e}")
             return None
 
 
@@ -253,18 +285,40 @@ async def add_client_to_all_servers(
     results = []
     for server_config in SERVERS:
         xui = XUIClient(server_config)
-        ok = await xui.add_client(vpn_uuid, email, traffic_limit_bytes, expiry_time)
-        results.append(ok)
-        logger.info(f"=== {server_config['name']} inbound={server_config['inbound_id']}: {'OK' if ok else 'FAIL'} ===")
-    logger.info(f"ALL SERVERS results: {results}")
-    return any(results)
+        try:
+            ok = await xui.add_client(vpn_uuid, email, traffic_limit_bytes, expiry_time)
+        except Exception as e:
+            logger.error(f"Unhandled error on {server_config['name']}: {e}")
+            ok = False
+        finally:
+            await xui.close()
+
+        results.append((server_config["name"], ok))
+        logger.info(
+            f"=== {server_config['name']} inbound={server_config['inbound_id']}: "
+            f"{'OK' if ok else 'FAIL'} ==="
+        )
+
+    failed = [name for name, ok in results if not ok]
+    if failed:
+        logger.warning(f"add_client_to_all_servers: FAILED on servers: {failed}")
+
+    any_ok = any(ok for _, ok in results)
+    logger.info(f"ALL SERVERS results: {results} | any_ok={any_ok}")
+    return any_ok
 
 
 async def remove_client_from_all_servers(email: str) -> bool:
     results = []
     for server_config in SERVERS:
         xui = XUIClient(server_config)
-        ok = await xui.remove_client(email)
+        try:
+            ok = await xui.remove_client(email)
+        except Exception as e:
+            logger.error(f"Unhandled error on {server_config['name']}: {e}")
+            ok = False
+        finally:
+            await xui.close()
         results.append(ok)
     return any(results)
 
@@ -274,10 +328,15 @@ async def get_total_traffic(email: str) -> dict:
     total_down = 0
     for server_config in SERVERS:
         xui = XUIClient(server_config)
-        traffic = await xui.get_client_traffic(email)
-        if traffic:
-            total_up += traffic["up"]
-            total_down += traffic["down"]
+        try:
+            traffic = await xui.get_client_traffic(email)
+            if traffic:
+                total_up += traffic["up"]
+                total_down += traffic["down"]
+        except Exception as e:
+            logger.error(f"Unhandled error on {server_config['name']}: {e}")
+        finally:
+            await xui.close()
     return {
         "up": total_up,
         "down": total_down,
