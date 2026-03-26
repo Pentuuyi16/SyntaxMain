@@ -3,12 +3,16 @@
 Создаёт/удаляет клиентов на всех серверах
 """
 
+import asyncio
 import json
 import logging
 import httpx
 from config import SERVERS
 
 logger = logging.getLogger(__name__)
+
+LOGIN_RETRIES = 3       # сколько раз пробовать логин
+LOGIN_RETRY_DELAY = 3   # секунд между попытками
 
 
 class XUIClient:
@@ -29,26 +33,45 @@ class XUIClient:
         await self._client.aclose()
 
     async def login(self) -> bool:
-        """Авторизация в панели. Повторно не логинится если уже авторизован."""
+        """
+        Авторизация в панели с retry.
+        Пробует LOGIN_RETRIES раз с паузой LOGIN_RETRY_DELAY секунд.
+        """
         if self._logged_in:
             return True
-        try:
-            resp = await self._client.post(
-                f"{self.base_url}/login",
-                data={"username": self.username, "password": self.password},
-            )
-            if resp.status_code == 200 and resp.json().get("success"):
-                self._logged_in = True
-                logger.info(f"Login OK: {self.server['name']} (inbound {self.inbound_id})")
-                return True
-            logger.error(
-                f"Login FAILED: {self.server['name']} "
-                f"status={resp.status_code} body={resp.text}"
-            )
-            return False
-        except Exception as e:
-            logger.error(f"Login ERROR: {self.server['name']}: {e}")
-            return False
+
+        for attempt in range(1, LOGIN_RETRIES + 1):
+            try:
+                resp = await self._client.post(
+                    f"{self.base_url}/login",
+                    data={"username": self.username, "password": self.password},
+                )
+                if resp.status_code == 200 and resp.json().get("success"):
+                    self._logged_in = True
+                    logger.info(
+                        f"Login OK: {self.server['name']} (inbound {self.inbound_id})"
+                        + (f" [attempt {attempt}]" if attempt > 1 else "")
+                    )
+                    return True
+
+                # Сервер ответил, но success=False — пароль неверный, retry не поможет
+                logger.error(
+                    f"Login FAILED: {self.server['name']} "
+                    f"status={resp.status_code} body={resp.text} — не повторяем"
+                )
+                return False
+
+            except Exception as e:
+                logger.warning(
+                    f"Login ERROR: {self.server['name']} attempt {attempt}/{LOGIN_RETRIES}: {e}"
+                )
+                if attempt < LOGIN_RETRIES:
+                    await asyncio.sleep(LOGIN_RETRY_DELAY)
+
+        logger.error(
+            f"Login ERROR: {self.server['name']}: все {LOGIN_RETRIES} попытки неудачны"
+        )
+        return False
 
     async def _ensure_logged_in(self) -> bool:
         """Гарантирует авторизацию перед запросом."""
@@ -74,7 +97,6 @@ class XUIClient:
         unique_email = self._unique_email(email)
 
         try:
-            # Получаем inbound чтобы найти текущий UUID (password) клиента
             resp = await self._client.get(
                 f"{self.base_url}/panel/api/inbounds/get/{self.inbound_id}",
             )
