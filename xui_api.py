@@ -6,6 +6,7 @@
 import asyncio
 import json
 import logging
+import time
 import httpx
 from config import SERVERS
 
@@ -26,6 +27,8 @@ def get_xui_client(server: dict) -> "XUIClient":
 
 
 class XUIClient:
+    SESSION_TTL = 300  # сессия живёт 5 минут
+
     def __init__(self, server: dict):
         self.server = server
         self.base_url = server["panel_url"]
@@ -34,6 +37,7 @@ class XUIClient:
         self.inbound_id = server["inbound_id"]
         self._client = httpx.AsyncClient(verify=False, timeout=8)
         self._logged_in = False
+        self._login_time = 0
 
     async def login(self) -> bool:
         self._logged_in = False
@@ -46,6 +50,7 @@ class XUIClient:
                 )
                 if resp.status_code == 200 and resp.json().get("success"):
                     self._logged_in = True
+                    self._login_time = time.time()
                     logger.info(
                         f"Login OK: {self.server['name']} (inbound {self.inbound_id})"
                         + (f" [attempt {attempt}]" if attempt > 1 else "")
@@ -71,7 +76,8 @@ class XUIClient:
         return False
 
     async def _ensure_logged_in(self) -> bool:
-        if not self._logged_in:
+        age = time.time() - self._login_time
+        if not self._logged_in or age > self.SESSION_TTL:
             return await self.login()
         return True
 
@@ -83,6 +89,7 @@ class XUIClient:
                 f"(HTTP {resp.status_code}), re-logging in..."
             )
             self._logged_in = False
+            self._login_time = 0
             if await self.login():
                 resp = await self._client.request(method, url, **kwargs)
         return resp
