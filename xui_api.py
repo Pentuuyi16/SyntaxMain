@@ -23,9 +23,16 @@ _login_locks: dict[str, asyncio.Lock] = {}
 
 def get_http_client(panel_url: str) -> httpx.AsyncClient:
     if panel_url not in _http_clients:
-        _http_clients[panel_url] = httpx.AsyncClient(verify=False, timeout=12)
+        _http_clients[panel_url] = httpx.AsyncClient(
+            verify=False,
+            timeout=12,
+            limits=httpx.Limits(
+                max_keepalive_connections=5,
+                max_connections=10,
+                keepalive_expiry=60,
+            )
+        )
     return _http_clients[panel_url]
-
 
 def get_login_lock(panel_url: str) -> asyncio.Lock:
     if panel_url not in _login_locks:
