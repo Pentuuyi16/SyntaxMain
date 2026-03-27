@@ -2,6 +2,7 @@
 Subscription Server + YooKassa Webhook — SyntaxVPN
 """
 
+import asyncio
 import base64
 import urllib.parse
 import logging
@@ -33,6 +34,18 @@ app = FastAPI(title="SyntaxVPN Subscription")
 async def startup():
     init_db()
     logger.info("Subscription server started")
+    asyncio.create_task(warmup_sessions())
+
+
+async def warmup_sessions():
+    from xui_api import get_xui_client, get_server_groups
+    logger.info("Warming up sessions...")
+    for servers in get_server_groups().values():
+        for server in servers:
+            xui = get_xui_client(server)
+            ok = await xui.login()
+            logger.info(f"Warmup {'OK' if ok else 'FAIL'}: {server['name']}")
+    logger.info("Warmup complete")
 
 
 def generate_trojan_link(server: dict, password: str) -> str:
@@ -88,7 +101,7 @@ def generate_subscription(vpn_uuid: str) -> str:
 async def subscription_endpoint(vpn_uuid: str):
     import time as t
     t0 = t.time()
-    
+
     user = get_user_by_uuid(vpn_uuid)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -106,7 +119,7 @@ async def subscription_endpoint(vpn_uuid: str):
 
     from xui_api import get_total_traffic
     email = f"tg_{user['telegram_id']}"
-    
+
     t1 = t.time()
     traffic = await get_total_traffic(email)
     logger.info(f"[TIMING] get_total_traffic: {t.time()-t1:.2f}s")
