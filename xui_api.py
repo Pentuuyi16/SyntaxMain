@@ -15,8 +15,15 @@ logger = logging.getLogger(__name__)
 LOGIN_RETRIES = 2
 LOGIN_RETRY_DELAY = 1
 
-# Глобальный пул клиентов — один на каждый inbound
+# Два пула — HTTP клиенты (по panel_url) и XUIClient (по panel_url + inbound_id)
+_http_clients: dict[str, httpx.AsyncClient] = {}
 _xui_clients: dict[str, "XUIClient"] = {}
+
+
+def get_http_client(panel_url: str) -> httpx.AsyncClient:
+    if panel_url not in _http_clients:
+        _http_clients[panel_url] = httpx.AsyncClient(verify=False, timeout=12)
+    return _http_clients[panel_url]
 
 
 def get_xui_client(server: dict) -> "XUIClient":
@@ -35,7 +42,7 @@ class XUIClient:
         self.username = server["panel_user"]
         self.password = server["panel_pass"]
         self.inbound_id = server["inbound_id"]
-        self._client = httpx.AsyncClient(verify=False, timeout=8)
+        self._client = get_http_client(server["panel_url"])  # общий клиент для одного panel_url
         self._logged_in = False
         self._login_time = 0
 
