@@ -7,6 +7,7 @@ import asyncio
 import json
 import logging
 import time
+from collections import defaultdict
 import httpx
 from config import SERVERS
 
@@ -15,8 +16,15 @@ logger = logging.getLogger(__name__)
 LOGIN_RETRIES = 2
 LOGIN_RETRY_DELAY = 1
 
-# Глобальный пул клиентов — один на каждый inbound
+_http_clients: dict[str, httpx.AsyncClient] = {}
 _xui_clients: dict[str, "XUIClient"] = {}
+
+
+def get_http_client(panel_url: str) -> httpx.AsyncClient:
+    if panel_url not in _http_clients:
+        _http_clients[panel_url] = httpx.AsyncClient(verify=False, timeout=12)
+    return _http_clients[panel_url]
+
 
 def get_xui_client(server: dict) -> "XUIClient":
     key = f"{server['panel_url']}_{server['inbound_id']}"
@@ -24,8 +32,9 @@ def get_xui_client(server: dict) -> "XUIClient":
         _xui_clients[key] = XUIClient(server)
     return _xui_clients[key]
 
+
 class XUIClient:
-    SESSION_TTL = 300  # сессия живёт 5 минут
+    SESSION_TTL = 300
 
     def __init__(self, server: dict):
         self.server = server
@@ -33,7 +42,7 @@ class XUIClient:
         self.username = server["panel_user"]
         self.password = server["panel_pass"]
         self.inbound_id = server["inbound_id"]
-        self._client = httpx.AsyncClient(verify=False, timeout=8)
+        self._client = get_http_client(server["panel_url"])
         self._logged_in = False
         self._login_time = 0
 
@@ -317,68 +326,87 @@ class XUIClient:
             logger.error(f"Get traffic ERROR on {self.server['name']}: {e}")
             return None
 
+
+def get_server_groups() -> dict[str, list]:
+    groups = defaultdict(list)
+    for s in SERVERS:
+        groups[s["panel_url"]].append(s)
+    return groups
+
+
 async def add_client_to_all_servers(
     vpn_uuid: str,
     email: str,
     traffic_limit_bytes: int = 0,
     expiry_time: int = 0,
 ) -> bool:
-    async def add_one(server_config):
-        xui = get_xui_client(server_config)
-        try:
-            ok = await xui.add_client(vpn_uuid, email, traffic_limit_bytes, expiry_time)
-        except Exception as e:
-            logger.error(f"Unhandled error on {server_config['name']}: {e}")
-            ok = False
-        logger.info(
-            f"=== {server_config['name']} inbound={server_config['inbound_id']}: "
-            f"{'OK' if ok else 'FAIL'} ==="
-        )
-        return server_config["name"], ok
+    async def add_group(servers):
+        results = []
+        for server_config in servers:
+            xui = get_xui_client(server_config)
+            try:
+                ok = await xui.add_client(vpn_uuid, email, traffic_limit_bytes, expiry_time)
+            except Exception as e:
+                logger.error(f"Unhandled error on {server_config['name']}: {e}")
+                ok = False
+            logger.info(
+                f"=== {server_config['name']} inbound={server_config['inbound_id']}: "
+                f"{'OK' if ok else 'FAIL'} ==="
+            )
+            results.append((server_config["name"], ok))
+        return results
 
-    results = await asyncio.gather(*[add_one(s) for s in SERVERS])
+    all_results = []
+    for group_result in await asyncio.gather(*[add_group(s) for s in get_server_groups().values()]):
+        all_results.extend(group_result)
 
-    failed = [name for name, ok in results if not ok]
+    failed = [name for name, ok in all_results if not ok]
     if failed:
         logger.warning(f"add_client_to_all_servers: FAILED on servers: {failed}")
 
-    any_ok = any(ok for _, ok in results)
-    logger.info(f"ALL SERVERS results: {list(results)} | any_ok={any_ok}")
+    any_ok = any(ok for _, ok in all_results)
+    logger.info(f"ALL SERVERS results: {all_results} | any_ok={any_ok}")
     return any_ok
 
-async def remove_client_from_all_servers(email: str) -> bool:
-    async def remove_one(server_config):
-        xui = get_xui_client(server_config)
-        try:
-            return await xui.remove_client(email)
-        except Exception as e:
-            logger.error(f"Unhandled error on {server_config['name']}: {e}")
-            return False
 
-    results = await asyncio.gather(*[remove_one(s) for s in SERVERS])
-    return any(results)
+async def remove_client_from_all_servers(email: str) -> bool:
+    async def remove_group(servers):
+        results = []
+        for server_config in servers:
+            xui = get_xui_client(server_config)
+            try:
+                ok = await xui.remove_client(email)
+            except Exception as e:
+                logger.error(f"Unhandled error on {server_config['name']}: {e}")
+                ok = False
+            results.append(ok)
+        return results
+
+    all_results = []
+    for group_result in await asyncio.gather(*[remove_group(s) for s in get_server_groups().values()]):
+        all_results.extend(group_result)
+    return any(all_results)
+
 
 async def get_total_traffic(email: str) -> dict:
-    async def fetch_one(server_config):
-        xui = get_xui_client(server_config)
-        try:
-            return await xui.get_client_traffic(email)
-        except Exception as e:
-            logger.error(f"Unhandled error on {server_config['name']}: {e}")
-            return None
-
-    results = await asyncio.gather(*[fetch_one(s) for s in SERVERS])
+    async def fetch_group(servers):
+        results = []
+        for server_config in servers:
+            xui = get_xui_client(server_config)
+            try:
+                traffic = await xui.get_client_traffic(email)
+                results.append(traffic)
+            except Exception as e:
+                logger.error(f"Unhandled error on {server_config['name']}: {e}")
+                results.append(None)
+        return results
 
     total_up = 0
     total_down = 0
-    for traffic in results:
-        if traffic:
-            total_up += traffic["up"]
-            total_down += traffic["down"]
+    for group_result in await asyncio.gather(*[fetch_group(s) for s in get_server_groups().values()]):
+        for traffic in group_result:
+            if traffic:
+                total_up += traffic["up"]
+                total_down += traffic["down"]
 
-    return {
-        "up": total_up,
-        "down": total_down,
-        "total": total_up + total_down,
-    }
-
+    return {"up": total_up, "down": total_down, "total": total_up + total_down}
