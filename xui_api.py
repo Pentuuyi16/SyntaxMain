@@ -15,23 +15,14 @@ logger = logging.getLogger(__name__)
 LOGIN_RETRIES = 2
 LOGIN_RETRY_DELAY = 1
 
-# Два пула — HTTP клиенты (по panel_url) и XUIClient (по panel_url + inbound_id)
-_http_clients: dict[str, httpx.AsyncClient] = {}
+# Глобальный пул клиентов — один на каждый inbound
 _xui_clients: dict[str, "XUIClient"] = {}
-
-
-def get_http_client(panel_url: str) -> httpx.AsyncClient:
-    if panel_url not in _http_clients:
-        _http_clients[panel_url] = httpx.AsyncClient(verify=False, timeout=12)
-    return _http_clients[panel_url]
-
 
 def get_xui_client(server: dict) -> "XUIClient":
     key = f"{server['panel_url']}_{server['inbound_id']}"
     if key not in _xui_clients:
         _xui_clients[key] = XUIClient(server)
     return _xui_clients[key]
-
 
 class XUIClient:
     SESSION_TTL = 300  # сессия живёт 5 минут
@@ -42,7 +33,7 @@ class XUIClient:
         self.username = server["panel_user"]
         self.password = server["panel_pass"]
         self.inbound_id = server["inbound_id"]
-        self._client = get_http_client(server["panel_url"])  # общий клиент для одного panel_url
+        self._client = httpx.AsyncClient(verify=False, timeout=8)
         self._logged_in = False
         self._login_time = 0
 
@@ -326,7 +317,6 @@ class XUIClient:
             logger.error(f"Get traffic ERROR on {self.server['name']}: {e}")
             return None
 
-
 async def add_client_to_all_servers(
     vpn_uuid: str,
     email: str,
@@ -356,7 +346,6 @@ async def add_client_to_all_servers(
     logger.info(f"ALL SERVERS results: {list(results)} | any_ok={any_ok}")
     return any_ok
 
-
 async def remove_client_from_all_servers(email: str) -> bool:
     async def remove_one(server_config):
         xui = get_xui_client(server_config)
@@ -368,7 +357,6 @@ async def remove_client_from_all_servers(email: str) -> bool:
 
     results = await asyncio.gather(*[remove_one(s) for s in SERVERS])
     return any(results)
-
 
 async def get_total_traffic(email: str) -> dict:
     async def fetch_one(server_config):
@@ -393,3 +381,4 @@ async def get_total_traffic(email: str) -> dict:
         "down": total_down,
         "total": total_up + total_down,
     }
+
