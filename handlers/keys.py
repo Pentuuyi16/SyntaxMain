@@ -2,12 +2,15 @@ from aiogram import Router, F
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 from datetime import datetime
 import math
+import time
+import logging
 
 from config import DOMAIN, SUB_PATH
 from database import get_or_create_user, get_active_subscription
 from xui_api import get_total_traffic
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 MYKEY_VIDEO = "BAACAgIAAxkBAAID2Wm2pLS46GHCGgnilxqURJhVvMNZAALlpwACpBq4SeajMUdtylrPOgQ"
 
@@ -37,6 +40,8 @@ def days_word(n: int) -> str:
 
 @router.callback_query(F.data == "mykey")
 async def mykey_handler(callback: CallbackQuery):
+    t0 = time.time()
+
     await callback.answer()
     user = get_or_create_user(callback.from_user.id, callback.from_user.username)
     sub = get_active_subscription(user["id"])
@@ -56,7 +61,12 @@ async def mykey_handler(callback: CallbackQuery):
         return
 
     email = f"tg_{callback.from_user.id}"
+
+    t1 = time.time()
     traffic = await get_total_traffic(email)
+    logger.info(f"[TIMING keys] get_total_traffic: {time.time()-t1:.2f}s")
+    logger.info(f"[TIMING keys] total: {time.time()-t0:.2f}s")
+
     used_gb = format_gb(traffic["total"])
     sub_link = get_sub_link(user["vpn_uuid"])
     expires = datetime.fromisoformat(sub["expires_at"])
