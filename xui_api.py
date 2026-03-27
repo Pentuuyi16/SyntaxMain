@@ -326,55 +326,61 @@ async def add_client_to_all_servers(
     traffic_limit_bytes: int = 0,
     expiry_time: int = 0,
 ) -> bool:
-    results = []
-    for server_config in SERVERS:
+    async def add_one(server_config):
         xui = get_xui_client(server_config)
         try:
             ok = await xui.add_client(vpn_uuid, email, traffic_limit_bytes, expiry_time)
         except Exception as e:
             logger.error(f"Unhandled error on {server_config['name']}: {e}")
             ok = False
-
-        results.append((server_config["name"], ok))
         logger.info(
             f"=== {server_config['name']} inbound={server_config['inbound_id']}: "
             f"{'OK' if ok else 'FAIL'} ==="
         )
+        return server_config["name"], ok
+
+    results = await asyncio.gather(*[add_one(s) for s in SERVERS])
 
     failed = [name for name, ok in results if not ok]
     if failed:
         logger.warning(f"add_client_to_all_servers: FAILED on servers: {failed}")
 
     any_ok = any(ok for _, ok in results)
-    logger.info(f"ALL SERVERS results: {results} | any_ok={any_ok}")
+    logger.info(f"ALL SERVERS results: {list(results)} | any_ok={any_ok}")
     return any_ok
 
 
 async def remove_client_from_all_servers(email: str) -> bool:
-    results = []
-    for server_config in SERVERS:
+    async def remove_one(server_config):
         xui = get_xui_client(server_config)
         try:
-            ok = await xui.remove_client(email)
+            return await xui.remove_client(email)
         except Exception as e:
             logger.error(f"Unhandled error on {server_config['name']}: {e}")
-            ok = False
-        results.append(ok)
+            return False
+
+    results = await asyncio.gather(*[remove_one(s) for s in SERVERS])
     return any(results)
 
 
 async def get_total_traffic(email: str) -> dict:
-    total_up = 0
-    total_down = 0
-    for server_config in SERVERS:
+    async def fetch_one(server_config):
         xui = get_xui_client(server_config)
         try:
-            traffic = await xui.get_client_traffic(email)
-            if traffic:
-                total_up += traffic["up"]
-                total_down += traffic["down"]
+            return await xui.get_client_traffic(email)
         except Exception as e:
             logger.error(f"Unhandled error on {server_config['name']}: {e}")
+            return None
+
+    results = await asyncio.gather(*[fetch_one(s) for s in SERVERS])
+
+    total_up = 0
+    total_down = 0
+    for traffic in results:
+        if traffic:
+            total_up += traffic["up"]
+            total_down += traffic["down"]
+
     return {
         "up": total_up,
         "down": total_down,
