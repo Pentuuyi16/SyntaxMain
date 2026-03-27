@@ -1,5 +1,6 @@
 from aiogram import Router, F
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, Message
+from aiogram.filters import Command
 from datetime import datetime, timedelta
 
 from config import PLANS, ADMIN_TELEGRAM_IDS, DOMAIN, SUB_PATH
@@ -37,6 +38,30 @@ PLAN_LABELS = {
 
 def has_media(message) -> bool:
     return bool(message.photo or message.video or message.animation)
+
+
+@router.message(Command("buy"))
+async def cmd_buy(message: Message):
+    text = (
+        "📡 <b>VPN ключ предоставляет доступ к стабильным локациям:</b>\n\n"
+        "☑️ <b>Instagram</b>\n"
+        "☑️ <b>TikTok</b>\n"
+        "☑️ <b>YouTube</b>\n"
+        "☑️ <b>Telegram</b>\n"
+        "☑️ <b>Gaming</b>\n\n"
+        "Идеально для <b><i>стриминга, соцсетей и онлайн-игр</i></b> — "
+        "всё открывается мгновенно, видео без ожидания, "
+        "стабильное соединение без лагов 🚀"
+    )
+    buttons = []
+    for plan_id in PLAN_LABELS:
+        buttons.append([InlineKeyboardButton(
+            text=PLAN_LABELS[plan_id],
+            callback_data=f"pay_{plan_id}"
+        )])
+    buttons.append([InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")])
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await message.answer_video(video=BUY_VIDEO, caption=text, reply_markup=kb)
 
 
 @router.callback_query(F.data == "trial")
@@ -96,7 +121,7 @@ async def buy_handler(callback: CallbackQuery):
     await callback.answer()
 
     text = (
-        "📡 <b>VPN‑ключ предоставляет доступ к стабильным локациям:</b>\n\n"
+        "📡 <b>VPN ключ предоставляет доступ к стабильным локациям:</b>\n\n"
         "☑️ <b>Instagram</b>\n"
         "☑️ <b>TikTok</b>\n"
         "☑️ <b>YouTube</b>\n"

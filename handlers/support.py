@@ -1,14 +1,25 @@
 from aiogram import Router, F
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, Message
+from aiogram.filters import Command
 
 router = Router()
 
 SUPPORT_VIDEO = "BAACAgIAAxkBAAPkabG6bCrHTuYunAN6oifN10gFV80AAoufAAJaVpBJ5f8STYZBFXQ6BA"
 
-
 def has_media(message) -> bool:
     return bool(message.photo or message.video or message.animation)
 
+@router.message(Command("help"))
+async def cmd_help(message: Message):
+    text = "🎧 <b>Выберите раздел, и мы поможем разобраться!</b>"
+    buttons = [
+        [InlineKeyboardButton(text="🔌 Как подключить VPN?", callback_data="how_to_connect")],
+        [InlineKeyboardButton(text="⁉️ Часто задаваемые вопросы", callback_data="faq")],
+        [InlineKeyboardButton(text="🎧 Чат с поддержкой", url="https://t.me/SyntaxSupport")],
+        [InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")],
+    ]
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await message.answer(text, reply_markup=kb)
 
 @router.callback_query(F.data == "support")
 async def support_handler(callback: CallbackQuery):
@@ -36,7 +47,6 @@ async def support_handler(callback: CallbackQuery):
             pass
 
     await callback.message.answer_video(video=SUPPORT_VIDEO, caption=text, reply_markup=kb)
-
 
 @router.callback_query(F.data == "faq")
 async def faq_handler(callback: CallbackQuery):
@@ -70,7 +80,6 @@ async def faq_handler(callback: CallbackQuery):
             await callback.message.edit_text(text, reply_markup=kb)
         except Exception:
             await callback.message.answer(text, reply_markup=kb)
-
 
 @router.callback_query(F.data == "how_to_connect")
 async def how_to_connect_handler(callback: CallbackQuery):
@@ -106,7 +115,6 @@ async def how_to_connect_handler(callback: CallbackQuery):
             await callback.message.edit_text(text, reply_markup=kb, disable_web_page_preview=True)
         except Exception:
             await callback.message.answer(text, reply_markup=kb, disable_web_page_preview=True)
-
 
 @router.callback_query(F.data == "chat_support")
 async def chat_support_handler(callback: CallbackQuery):

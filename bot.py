@@ -9,7 +9,7 @@ from datetime import datetime
 from aiogram import Bot, Dispatcher, Router, types, F
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 
 from config import TELEGRAM_BOT_TOKEN
 from database import (
@@ -53,13 +53,11 @@ async def get_video_note_id(message: types.Message):
 
 
 async def check_expired_subscriptions():
-    """Фоновая задача — проверяет истёкшие подписки и напоминания"""
     await asyncio.sleep(10)
     logger.info("check_expired_subscriptions task started")
 
     while True:
         try:
-            # 1. Напоминание за 1 день
             subs = get_all_active_subscriptions()
             now = datetime.utcnow()
 
@@ -93,7 +91,6 @@ async def check_expired_subscriptions():
                         except Exception as e:
                             logger.error(f"Failed to send 1-day reminder to {sub['telegram_id']}: {e}")
 
-            # 2. Подписка истекла
             expired_subs = get_expired_active_subscriptions()
 
             if expired_subs:
@@ -139,8 +136,14 @@ async def main():
         dp.include_router(r)
     dp.include_router(temp_router)
 
-    asyncio.create_task(check_expired_subscriptions())
+    await bot.set_my_commands([
+        BotCommand(command="start", description="Главное меню"),
+        BotCommand(command="buy", description="Купить подписку"),
+        BotCommand(command="help", description="Помощь"),
+        BotCommand(command="keys", description="Мой ключ"),
+    ])
 
+    asyncio.create_task(check_expired_subscriptions())
     logger.info("Bot started!")
     await dp.start_polling(bot)
 

@@ -1,31 +1,25 @@
 from aiogram import Router, F
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, Message
+from aiogram.filters import Command
 from datetime import datetime
 import math
-import time
-import logging
 
 from config import DOMAIN, SUB_PATH
 from database import get_or_create_user, get_active_subscription
 from xui_api import get_total_traffic
 
 router = Router()
-logger = logging.getLogger(__name__)
 
 MYKEY_VIDEO = "BAACAgIAAxkBAAID2Wm2pLS46GHCGgnilxqURJhVvMNZAALlpwACpBq4SeajMUdtylrPOgQ"
-
 
 def format_gb(b: int) -> str:
     return f"{b / 1024**3:.1f}"
 
-
 def get_sub_link(vpn_uuid: str) -> str:
     return f"https://{DOMAIN}{SUB_PATH}/{vpn_uuid}"
 
-
 def has_media(message) -> bool:
     return bool(message.photo or message.video or message.animation)
-
 
 def days_word(n: int) -> str:
     if 11 <= n % 100 <= 19:
@@ -37,11 +31,18 @@ def days_word(n: int) -> str:
         return "дня"
     return "дней"
 
+@router.message(Command("keys"))
+async def cmd_keys(message: Message):
+    user = get_or_create_user(message.from_user.id, message.from_user.username)
+    sub = get_active_subscription(user["id"])
+    if not sub:
+        await message.answer("❌ У тебя нет активной подписки.\nКупи подписку чтобы получить ключ!")
+        return
+    sub_link = get_sub_link(user["vpn_uuid"])
+    await message.answer(f"🗝 Ваш ключ:\n<code>{sub_link}</code>")
 
 @router.callback_query(F.data == "mykey")
 async def mykey_handler(callback: CallbackQuery):
-    t0 = time.time()
-
     await callback.answer()
     user = get_or_create_user(callback.from_user.id, callback.from_user.username)
     sub = get_active_subscription(user["id"])
@@ -61,12 +62,7 @@ async def mykey_handler(callback: CallbackQuery):
         return
 
     email = f"tg_{callback.from_user.id}"
-
-    t1 = time.time()
     traffic = await get_total_traffic(email)
-    logger.info(f"[TIMING keys] get_total_traffic: {time.time()-t1:.2f}s")
-    logger.info(f"[TIMING keys] total: {time.time()-t0:.2f}s")
-
     used_gb = format_gb(traffic["total"])
     sub_link = get_sub_link(user["vpn_uuid"])
     expires = datetime.fromisoformat(sub["expires_at"])
