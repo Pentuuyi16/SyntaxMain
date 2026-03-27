@@ -149,6 +149,7 @@ SERVERS = [
         "public_key": "X9pnhNNM0eKQR8ySmFwf-YgyrkDWlEYdp9TzgHB6K0c",
         "short_id": "3d",
         "spx": "/",
+        "mode": "packet-up",
     },
 
 
