@@ -18,6 +18,7 @@ LOGIN_RETRY_DELAY = 1
 
 _http_clients: dict[str, httpx.AsyncClient] = {}
 _xui_clients: dict[str, "XUIClient"] = {}
+_login_locks: dict[str, asyncio.Lock] = {}
 
 
 def get_http_client(panel_url: str) -> httpx.AsyncClient:
@@ -26,11 +27,24 @@ def get_http_client(panel_url: str) -> httpx.AsyncClient:
     return _http_clients[panel_url]
 
 
+def get_login_lock(panel_url: str) -> asyncio.Lock:
+    if panel_url not in _login_locks:
+        _login_locks[panel_url] = asyncio.Lock()
+    return _login_locks[panel_url]
+
+
 def get_xui_client(server: dict) -> "XUIClient":
     key = f"{server['panel_url']}_{server['inbound_id']}"
     if key not in _xui_clients:
         _xui_clients[key] = XUIClient(server)
     return _xui_clients[key]
+
+
+def get_server_groups() -> dict[str, list]:
+    groups = defaultdict(list)
+    for s in SERVERS:
+        groups[s["panel_url"]].append(s)
+    return groups
 
 
 class XUIClient:
@@ -47,40 +61,47 @@ class XUIClient:
         self._login_time = 0
 
     async def login(self) -> bool:
-        self._logged_in = False
+        lock = get_login_lock(self.base_url)
+        async with lock:
+            # Если пока ждали лок другой поток уже залогинился — не логинимся повторно
+            age = time.time() - self._login_time
+            if self._logged_in and age <= self.SESSION_TTL:
+                return True
 
-        for attempt in range(1, LOGIN_RETRIES + 1):
-            try:
-                resp = await self._client.post(
-                    f"{self.base_url}/login",
-                    data={"username": self.username, "password": self.password},
-                )
-                if resp.status_code == 200 and resp.json().get("success"):
-                    self._logged_in = True
-                    self._login_time = time.time()
-                    logger.info(
-                        f"Login OK: {self.server['name']} (inbound {self.inbound_id})"
-                        + (f" [attempt {attempt}]" if attempt > 1 else "")
+            self._logged_in = False
+
+            for attempt in range(1, LOGIN_RETRIES + 1):
+                try:
+                    resp = await self._client.post(
+                        f"{self.base_url}/login",
+                        data={"username": self.username, "password": self.password},
                     )
-                    return True
+                    if resp.status_code == 200 and resp.json().get("success"):
+                        self._logged_in = True
+                        self._login_time = time.time()
+                        logger.info(
+                            f"Login OK: {self.server['name']} (inbound {self.inbound_id})"
+                            + (f" [attempt {attempt}]" if attempt > 1 else "")
+                        )
+                        return True
 
-                logger.error(
-                    f"Login FAILED: {self.server['name']} "
-                    f"status={resp.status_code} body={resp.text} — не повторяем"
-                )
-                return False
+                    logger.error(
+                        f"Login FAILED: {self.server['name']} "
+                        f"status={resp.status_code} body={resp.text} — не повторяем"
+                    )
+                    return False
 
-            except Exception as e:
-                logger.warning(
-                    f"Login ERROR: {self.server['name']} attempt {attempt}/{LOGIN_RETRIES}: {e}"
-                )
-                if attempt < LOGIN_RETRIES:
-                    await asyncio.sleep(LOGIN_RETRY_DELAY)
+                except Exception as e:
+                    logger.warning(
+                        f"Login ERROR: {self.server['name']} attempt {attempt}/{LOGIN_RETRIES}: {e}"
+                    )
+                    if attempt < LOGIN_RETRIES:
+                        await asyncio.sleep(LOGIN_RETRY_DELAY)
 
-        logger.error(
-            f"Login ERROR: {self.server['name']}: все {LOGIN_RETRIES} попытки неудачны"
-        )
-        return False
+            logger.error(
+                f"Login ERROR: {self.server['name']}: все {LOGIN_RETRIES} попытки неудачны"
+            )
+            return False
 
     async def _ensure_logged_in(self) -> bool:
         age = time.time() - self._login_time
@@ -325,13 +346,6 @@ class XUIClient:
         except Exception as e:
             logger.error(f"Get traffic ERROR on {self.server['name']}: {e}")
             return None
-
-
-def get_server_groups() -> dict[str, list]:
-    groups = defaultdict(list)
-    for s in SERVERS:
-        groups[s["panel_url"]].append(s)
-    return groups
 
 
 async def add_client_to_all_servers(
