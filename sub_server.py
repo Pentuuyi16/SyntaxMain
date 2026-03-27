@@ -86,6 +86,9 @@ def generate_subscription(vpn_uuid: str) -> str:
 
 @app.get(f"{SUB_PATH}/{{vpn_uuid}}")
 async def subscription_endpoint(vpn_uuid: str):
+    import time as t
+    t0 = t.time()
+    
     user = get_user_by_uuid(vpn_uuid)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -99,10 +102,14 @@ async def subscription_endpoint(vpn_uuid: str):
         raise HTTPException(status_code=403, detail="Subscription expired")
 
     content = generate_subscription(vpn_uuid)
+    logger.info(f"[TIMING] generate_subscription: {t.time()-t0:.2f}s")
 
     from xui_api import get_total_traffic
     email = f"tg_{user['telegram_id']}"
+    
+    t1 = t.time()
     traffic = await get_total_traffic(email)
+    logger.info(f"[TIMING] get_total_traffic: {t.time()-t1:.2f}s")
 
     headers = {
         "Content-Type": "text/plain; charset=utf-8",
@@ -113,6 +120,7 @@ async def subscription_endpoint(vpn_uuid: str):
         "Support-URL": "https://t.me/syntxvpn_bot",
     }
 
+    logger.info(f"[TIMING] total request: {t.time()-t0:.2f}s")
     return Response(content=content, headers=headers, media_type="text/plain")
 
 
