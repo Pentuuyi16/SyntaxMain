@@ -44,6 +44,10 @@ def get_all_user_ids() -> list[int]:
         return [r["telegram_id"] for r in rows]
 
 
+# Хранилище последней рассылки — chat_id: message_id
+_last_broadcast: dict[int, int] = {}
+
+
 @router.callback_query(F.data == "admin")
 async def admin_handler(callback: CallbackQuery):
     if callback.from_user.id not in ADMIN_TELEGRAM_IDS:
@@ -76,6 +80,7 @@ async def admin_handler(callback: CallbackQuery):
 
     buttons = [
         [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
+        [InlineKeyboardButton(text="🗑 Удалить последнюю рассылку", callback_data="admin_broadcast_delete")],
         [InlineKeyboardButton(text="🚪 Назад", callback_data="back_start")],
     ]
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -133,28 +138,29 @@ async def admin_broadcast_send(message: Message, state: FSMContext):
     for i, user_id in enumerate(user_ids):
         try:
             if message.photo:
-                await bot.send_photo(
+                sent = await bot.send_photo(
                     user_id,
                     photo=message.photo[-1].file_id,
                     caption=message.caption or "",
                 )
             elif message.video:
-                await bot.send_video(
+                sent = await bot.send_video(
                     user_id,
                     video=message.video.file_id,
                     caption=message.caption or "",
                 )
             elif message.animation:
-                await bot.send_animation(
+                sent = await bot.send_animation(
                     user_id,
                     animation=message.animation.file_id,
                     caption=message.caption or "",
                 )
             else:
-                await bot.send_message(
+                sent = await bot.send_message(
                     user_id,
                     text=message.html_text,
                 )
+            _last_broadcast[user_id] = sent.message_id
             success += 1
         except Exception:
             failed += 1
@@ -169,5 +175,45 @@ async def admin_broadcast_send(message: Message, state: FSMContext):
         f"✅ Рассылка завершена!\n\n"
         f"👥 Всего: {total}\n"
         f"✅ Успешно: {success}\n"
+        f"❌ Ошибок: {failed}"
+    )
+
+
+@router.callback_query(F.data == "admin_broadcast_delete")
+async def admin_broadcast_delete(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_TELEGRAM_IDS:
+        await callback.answer("⛔️ Нет доступа", show_alert=True)
+        return
+    await callback.answer()
+
+    if not _last_broadcast:
+        await callback.message.answer("❌ Нет сохранённой рассылки для удаления.")
+        return
+
+    total = len(_last_broadcast)
+    success = 0
+    failed = 0
+
+    status_msg = await callback.message.answer(f"⏳ Удаление... 0/{total}")
+
+    from bot import bot
+    for i, (user_id, msg_id) in enumerate(_last_broadcast.items()):
+        try:
+            await bot.delete_message(user_id, msg_id)
+            success += 1
+        except Exception:
+            failed += 1
+
+        if (i + 1) % 10 == 0:
+            try:
+                await status_msg.edit_text(f"⏳ Удаление... {i+1}/{total}")
+            except Exception:
+                pass
+
+    _last_broadcast.clear()
+
+    await status_msg.edit_text(
+        f"✅ Удаление завершено!\n\n"
+        f"✅ Удалено: {success}\n"
         f"❌ Ошибок: {failed}"
     )
