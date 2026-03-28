@@ -52,21 +52,6 @@ async def get_video_note_id(message: types.Message):
     await message.answer(f"video_note file_id:\n<code>{message.video_note.file_id}</code>")
 
 
-async def keepalive_ping():
-    await asyncio.sleep(30)
-    logger.info("Keepalive ping started")
-    while True:
-        try:
-            from xui_api import get_xui_client, get_server_groups
-            for servers in get_server_groups().values():
-                for server in servers:
-                    xui = get_xui_client(server)
-                    await xui._ensure_logged_in()
-        except Exception as e:
-            logger.error(f"Keepalive ping error: {e}")
-        await asyncio.sleep(20)
-
-
 async def check_expired_subscriptions():
     await asyncio.sleep(10)
     logger.info("check_expired_subscriptions task started")
@@ -158,7 +143,6 @@ async def main():
         BotCommand(command="keys", description="Мой ключ"),
     ])
 
-    asyncio.create_task(keepalive_ping())
     asyncio.create_task(check_expired_subscriptions())
     logger.info("Bot started!")
     await dp.start_polling(bot)

@@ -20,7 +20,6 @@ _http_clients: dict[str, httpx.AsyncClient] = {}
 _xui_clients: dict[str, "XUIClient"] = {}
 _login_locks: dict[str, asyncio.Lock] = {}
 
-
 def get_http_client(panel_url: str) -> httpx.AsyncClient:
     if panel_url not in _http_clients:
         _http_clients[panel_url] = httpx.AsyncClient(
@@ -29,7 +28,7 @@ def get_http_client(panel_url: str) -> httpx.AsyncClient:
             limits=httpx.Limits(
                 max_keepalive_connections=5,
                 max_connections=10,
-                keepalive_expiry=30,
+                keepalive_expiry=60,
             )
         )
     return _http_clients[panel_url]
@@ -39,20 +38,17 @@ def get_login_lock(panel_url: str) -> asyncio.Lock:
         _login_locks[panel_url] = asyncio.Lock()
     return _login_locks[panel_url]
 
-
 def get_xui_client(server: dict) -> "XUIClient":
     key = f"{server['panel_url']}_{server['inbound_id']}"
     if key not in _xui_clients:
         _xui_clients[key] = XUIClient(server)
     return _xui_clients[key]
 
-
 def get_server_groups() -> dict[str, list]:
     groups = defaultdict(list)
     for s in SERVERS:
         groups[s["panel_url"]].append(s)
     return groups
-
 
 class XUIClient:
     SESSION_TTL = 300
@@ -354,7 +350,6 @@ class XUIClient:
             logger.error(f"Get traffic ERROR on {self.server['name']}: {e}")
             return None
 
-
 async def add_client_to_all_servers(
     vpn_uuid: str,
     email: str,
@@ -389,7 +384,6 @@ async def add_client_to_all_servers(
     logger.info(f"ALL SERVERS results: {all_results} | any_ok={any_ok}")
     return any_ok
 
-
 async def remove_client_from_all_servers(email: str) -> bool:
     async def remove_group(servers):
         results = []
@@ -407,7 +401,6 @@ async def remove_client_from_all_servers(email: str) -> bool:
     for group_result in await asyncio.gather(*[remove_group(s) for s in get_server_groups().values()]):
         all_results.extend(group_result)
     return any(all_results)
-
 
 async def get_total_traffic(email: str) -> dict:
     async def fetch_group(servers):
@@ -431,3 +424,4 @@ async def get_total_traffic(email: str) -> dict:
                 total_down += traffic["down"]
 
     return {"up": total_up, "down": total_down, "total": total_up + total_down}
+
