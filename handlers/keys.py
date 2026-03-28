@@ -3,12 +3,15 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQu
 from aiogram.filters import Command
 from datetime import datetime
 import math
+import time
+import logging
 
 from config import DOMAIN, SUB_PATH
 from database import get_or_create_user, get_active_subscription
 from xui_api import get_total_traffic
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 MYKEY_VIDEO = "BAACAgIAAxkBAAID2Wm2pLS46GHCGgnilxqURJhVvMNZAALlpwACpBq4SeajMUdtylrPOgQ"
 
@@ -62,7 +65,10 @@ async def mykey_handler(callback: CallbackQuery):
         return
 
     email = f"tg_{callback.from_user.id}"
+    t1 = time.time()
     traffic = await get_total_traffic(email)
+    logger.info(f"[TIMING keys] get_total_traffic: {time.time()-t1:.2f}s")
+
     used_gb = format_gb(traffic["total"])
     sub_link = get_sub_link(user["vpn_uuid"])
     expires = datetime.fromisoformat(sub["expires_at"])
