@@ -1,10 +1,16 @@
 from aiogram import Router, F
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, Message
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 
 from config import ADMIN_TELEGRAM_IDS
 from database import get_all_users_count, get_active_subs_count, get_db
 
 router = Router()
+
+
+class BroadcastState(StatesGroup):
+    waiting_for_message = State()
 
 
 def has_media(message) -> bool:
@@ -30,6 +36,12 @@ def get_recent_payments(limit: int = 10) -> list[dict]:
             LIMIT ?
         """, (limit,)).fetchall()
         return [dict(r) for r in rows]
+
+
+def get_all_user_ids() -> list[int]:
+    with get_db() as db:
+        rows = db.execute("SELECT telegram_id FROM users").fetchall()
+        return [r["telegram_id"] for r in rows]
 
 
 @router.callback_query(F.data == "admin")
@@ -75,3 +87,87 @@ async def admin_handler(callback: CallbackQuery):
             await callback.message.edit_text(text, reply_markup=kb)
         except Exception:
             await callback.message.answer(text, reply_markup=kb)
+
+
+@router.callback_query(F.data == "admin_broadcast")
+async def admin_broadcast_handler(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id not in ADMIN_TELEGRAM_IDS:
+        await callback.answer("⛔️ Нет доступа", show_alert=True)
+        return
+    await callback.answer()
+
+    await state.set_state(BroadcastState.waiting_for_message)
+
+    buttons = [[InlineKeyboardButton(text="🚪 Отмена", callback_data="admin_broadcast_cancel")]]
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await callback.message.answer(
+        "📢 <b>Рассылка</b>\n\n"
+        "Отправь сообщение которое хочешь разослать всем пользователям.\n"
+        "Поддерживается текст, фото, видео.",
+        reply_markup=kb
+    )
+
+
+@router.callback_query(F.data == "admin_broadcast_cancel")
+async def admin_broadcast_cancel(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.answer("Отменено")
+    await callback.message.delete()
+
+
+@router.message(BroadcastState.waiting_for_message)
+async def admin_broadcast_send(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_TELEGRAM_IDS:
+        return
+
+    await state.clear()
+
+    user_ids = get_all_user_ids()
+    total = len(user_ids)
+    success = 0
+    failed = 0
+
+    status_msg = await message.answer(f"⏳ Рассылка началась... 0/{total}")
+
+    from bot import bot
+    for i, user_id in enumerate(user_ids):
+        try:
+            if message.photo:
+                await bot.send_photo(
+                    user_id,
+                    photo=message.photo[-1].file_id,
+                    caption=message.caption or "",
+                )
+            elif message.video:
+                await bot.send_video(
+                    user_id,
+                    video=message.video.file_id,
+                    caption=message.caption or "",
+                )
+            elif message.animation:
+                await bot.send_animation(
+                    user_id,
+                    animation=message.animation.file_id,
+                    caption=message.caption or "",
+                )
+            else:
+                await bot.send_message(
+                    user_id,
+                    text=message.html_text,
+                )
+            success += 1
+        except Exception:
+            failed += 1
+
+        if (i + 1) % 10 == 0:
+            try:
+                await status_msg.edit_text(f"⏳ Рассылка... {i+1}/{total}")
+            except Exception:
+                pass
+
+    await status_msg.edit_text(
+        f"✅ Рассылка завершена!\n\n"
+        f"👥 Всего: {total}\n"
+        f"✅ Успешно: {success}\n"
+        f"❌ Ошибок: {failed}"
+    )
