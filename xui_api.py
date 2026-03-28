@@ -28,7 +28,7 @@ def get_http_client(panel_url: str) -> httpx.AsyncClient:
             limits=httpx.Limits(
                 max_keepalive_connections=5,
                 max_connections=10,
-                keepalive_expiry=60,
+                keepalive_expiry=30,
             )
         )
     return _http_clients[panel_url]
